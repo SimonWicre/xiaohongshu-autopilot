@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小红书运营看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #16161f;
+            --bg-hover: #1e1e2a;
+            --bg-active: #252536;
+            --border: #1e1e2e;
+            --border-light: #2a2a3d;
+            --text-primary: #e8e8ed;
+            --text-secondary: #8b8b9e;
+            --text-muted: #5a5a72;
+            --accent: #6c5ce7;
+            --accent-light: #a29bfe;
+            --green: #00d2a0;
+            --green-bg: rgba(0, 210, 160, 0.08);
+            --red: #ff6b6b;
+            --red-bg: rgba(255, 107, 107, 0.08);
+            --orange: #ffa502;
+            --orange-bg: rgba(255, 165, 2, 0.08);
+            --blue: #4dabf7;
+            --blue-bg: rgba(77, 171, 247, 0.08);
+            --sidebar-width: 240px;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --font: -apple-system, "SF Pro Text", "PingFang SC", "Noto Sans SC", sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .app { display: grid; grid-template-columns: var(--sidebar-width) 1fr; min-height: 100vh; }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 24px 16px;
+            position: fixed;
+            top: 0; left: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-logo {
+            display: flex; align-items: center; gap: 10px;
+            padding: 0 8px 24px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+
+        .sidebar-logo-icon {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; font-weight: 700;
+        }
+
+        .sidebar-logo-text { font-size: 15px; font-weight: 600; }
+
+        .nav-section { margin-bottom: 24px; }
+
+        .nav-label {
+            font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-muted); padding: 0 12px; margin-bottom: 8px;
+        }
+
+        .nav-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 12px; border-radius: var(--radius-sm);
+            color: var(--text-secondary); cursor: pointer;
+            font-size: 14px; transition: all 0.15s; user-select: none;
+        }
+
+        .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .nav-item.active { background: var(--bg-active); color: var(--text-primary); }
+
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.7; }
+        .nav-item.active svg { opacity: 1; }
+
+        .nav-badge {
+            margin-left: auto;
+            background: var(--accent); color: #fff;
+            font-size: 11px; font-weight: 600;
+            padding: 1px 7px; border-radius: 10px;
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* Main */
+        .main { margin-left: var(--sidebar-width); padding: 32px; min-height: 100vh; }
+
+        .page-header { margin-bottom: 32px; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+        .page-subtitle { color: var(--text-secondary); font-size: 14px; }
+
+        /* Stats Grid */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            transition: border-color 0.15s;
+        }
+
+        .stat-card:hover { border-color: var(--border-light); }
+
+        .stat-label {
+            font-size: 13px; color: var(--text-secondary);
+            margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+        }
+
+        .stat-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.2; }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+        }
+
+        .card-title { font-size: 15px; font-weight: 600; }
+        .card-body { padding: 20px; }
+        .card-actions { display: flex; gap: 8px; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 14px; border-radius: var(--radius-sm);
+            font-size: 13px; font-weight: 500; cursor: pointer;
+            border: 1px solid var(--border); background: var(--bg-hover);
+            color: var(--text-secondary); transition: all 0.15s; font-family: inherit;
+        }
+
+        .btn:hover { background: var(--bg-active); color: var(--text-primary); border-color: var(--border-light); }
+        .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn-primary:hover { background: var(--accent-light); border-color: var(--accent-light); }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+        /* Charts */
+        .chart-container { position: relative; height: 280px; width: 100%; }
+
+        /* Table */
+        .table-wrapper { overflow-x: auto; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+        th {
+            text-align: left; padding: 10px 16px;
+            font-weight: 500; color: var(--text-muted);
+            font-size: 12px; text-transform: uppercase;
+            letter-spacing: 0.05em; border-bottom: 1px solid var(--border);
+        }
+
+        td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+        tr:hover td { background: var(--bg-hover); }
+
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+        .tag-purple { background: rgba(108, 92, 231, 0.12); color: var(--accent-light); }
+        .tag-green { background: var(--green-bg); color: var(--green); }
+        .tag-orange { background: var(--orange-bg); color: var(--orange); }
+        .tag-blue { background: var(--blue-bg); color: var(--blue); }
+        .tag-red { background: var(--red-bg); color: var(--red); }
+
+        /* Task list */
+        .task-list { display: flex; flex-direction: column; gap: 8px; }
+
+        .task-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px; background: var(--bg-secondary);
+            border-radius: var(--radius-sm); border: 1px solid var(--border);
+            transition: border-color 0.15s;
+        }
+
+        .task-item:hover { border-color: var(--border-light); }
+
+        .task-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .task-status.running { background: var(--green); box-shadow: 0 0 8px rgba(0, 210, 160, 0.4); }
+        .task-status.pending { background: var(--orange); }
+        .task-status.done { background: var(--text-muted); }
+        .task-status.failed { background: var(--red); }
+
+        .task-info { flex: 1; min-width: 0; }
+        .task-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .task-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .task-time { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+        /* Tag cloud */
+        .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+
+        .tag-cloud-item {
+            padding: 6px 14px; border-radius: 20px;
+            font-size: 13px; background: var(--bg-active);
+            color: var(--text-secondary); border: 1px solid var(--border);
+            transition: all 0.15s;
+        }
+
+        .tag-cloud-item:hover { border-color: var(--accent); color: var(--accent-light); }
+        .tag-cloud-item .count { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+
+        /* Engagement bars */
+        .engagement-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .engagement-label { font-size: 13px; color: var(--text-secondary); width: 50px; flex-shrink: 0; }
+        .engagement-track { flex: 1; height: 6px; background: var(--bg-active); border-radius: 3px; overflow: hidden; }
+        .engagement-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+        .engagement-value { font-size: 13px; font-weight: 600; width: 60px; text-align: right; flex-shrink: 0; }
+
+        .section { display: none; }
+        .section.active { display: block; }
+
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; color: var(--text-muted); }
+        .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.3; }
+        .empty-state p { font-size: 14px; }
+
+        .loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+
+        .spinner {
+            width: 20px; height: 20px;
+            border: 2px solid var(--border); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 10px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .hotspot-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .hotspot-item:last-child { border-bottom: none; }
+
+        .hotspot-rank {
+            width: 24px; height: 24px; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; flex-shrink: 0;
+        }
+
+        .hotspot-rank.top { background: var(--accent); color: #fff; }
+        .hotspot-rank.normal { background: var(--bg-active); color: var(--text-muted); }
+        .hotspot-name { flex: 1; font-size: 14px; font-weight: 500; }
+        .hotspot-confidence { font-size: 13px; font-weight: 600; color: var(--green); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            z-index: 100; display: none; align-items: center; justify-content: center;
+        }
+
+        .modal-overlay.show { display: flex; }
+
+        .modal {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+        }
+
+        .modal-title { font-size: 16px; font-weight: 600; }
+
+        .modal-close {
+            width: 28px; height: 28px; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; color: var(--text-muted); background: none; border: none; font-size: 18px;
+        }
+
+        .modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .modal-body { padding: 20px; }
+
+        .note-detail-title { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+        .note-detail-meta { display: flex; gap: 16px; margin-bottom: 16px; font-size: 13px; color: var(--text-muted); }
+        .note-detail-content { font-size: 14px; line-height: 1.8; color: var(--text-secondary); white-space: pre-wrap; }
+        .note-detail-tags { display: flex; gap: 6px; margin-top: 16px; flex-wrap: wrap; }
+
+        @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .app { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+            .main { margin-left: 0; padding: 16px; }
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <nav class="sidebar">
+            <div class="sidebar-logo">
+                <div class="sidebar-logo-icon">X</div>
+                <span class="sidebar-logo-text">小红书运营</span>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-label">总览</div>
+                <div class="nav-item active" data-section="overview" onclick="switchSection('overview')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    数据概览
+                </div>
+                <div class="nav-item" data-section="hotspots" onclick="switchSection('hotspots')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    热点趋势
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-label">管理</div>
+                <div class="nav-item" data-section="notes" onclick="switchSection('notes')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    内容管理
+                    <span class="nav-badge" id="notes-count">0</span>
+                </div>
+                <div class="nav-item" data-section="tasks" onclick="switchSection('tasks')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    发布任务
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="nav-item" onclick="window.open('https://github.com/SimonWicre/xiaohongshu-autopilot', '_blank')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    系统设置
+                </div>
+            </div>
+        </nav>
+
+        <main class="main">
+            <!-- Overview -->
+            <div class="section active" id="section-overview">
+                <div class="page-header">
+                    <h1 class="page-title">数据概览</h1>
+                    <p class="page-subtitle">实时监控小红书运营数据</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label"><span class="stat-dot" style="background:var(--accent)"></span>采集笔记</div>
+                        <div class="stat-value" id="stat-crawled">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label"><span class="stat-dot" style="background:var(--green)"></span>识别热点</div>
+                        <div class="stat-value" id="stat-hotspots">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label"><span class="stat-dot" style="background:var(--orange)"></span>生成笔记</div>
+                        <div class="stat-value" id="stat-generated">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label"><span class="stat-dot" style="background:var(--blue)"></span>发布成功</div>
+                        <div class="stat-value" id="stat-published">-</div>
+                    </div>
+                </div>
+
+                <div class="grid-3">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">互动数据分布</span></div>
+                        <div class="card-body"><div class="chart-container"><canvas id="engagement-chart"></canvas></div></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">互动率概览</span></div>
+                        <div class="card-body" id="engagement-bars"><div class="loading"><div class="spinner"></div>加载中...</div></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><span class="card-title">热门标签</span></div>
+                    <div class="card-body"><div class="tag-cloud" id="tag-cloud"><div class="loading"><div class="spinner"></div>加载中...</div></div></div>
+                </div>
+            </div>
+
+            <!-- Hotspots -->
+            <div class="section" id="section-hotspots">
+                <div class="page-header">
+                    <h1 class="page-title">热点趋势</h1>
+                    <p class="page-subtitle">基于数据分析的热点识别</p>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">标题模式分析</span></div>
+                        <div class="card-body"><div class="chart-container"><canvas id="title-pattern-chart"></canvas></div></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><span class="card-title">热点排行榜</span></div>
+                        <div class="card-body" id="hotspot-ranking"><div class="loading"><div class="spinner"></div>分析中...</div></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">标签分布</span>
+                        <div class="card-actions">
+                            <button class="btn btn-sm btn-primary" onclick="runAnalysis()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                重新分析
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body"><div class="chart-container" style="height:320px"><canvas id="tag-chart"></canvas></div></div>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="section" id="section-notes">
+                <div class="page-header">
+                    <h1 class="page-title">内容管理</h1>
+                    <p class="page-subtitle">管理采集和生成的笔记内容</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">笔记列表</span>
+                        <div class="card-actions">
+                            <button class="btn btn-sm" onclick="loadNotes()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                刷新
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="generateNotes()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                AI 生成
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead><tr><th>标题</th><th>作者</th><th>点赞</th><th>收藏</th><th>评论</th><th>标签</th></tr></thead>
+                                <tbody id="notes-table-body"><tr><td colspan="6"><div class="loading"><div class="spinner"></div>加载中...</div></td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks -->
+            <div class="section" id="section-tasks">
+                <div class="page-header">
+                    <h1 class="page-title">发布任务</h1>
+                    <p class="page-subtitle">管理笔记发布任务和状态</p>
+                </div>
+
+                <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
+                    <div class="stat-card">
+                        <div class="stat-label"><span class="stat-dot" style="background:var(--green)"></span>运行中</div>
+                        <div class="stat-value" id="task-running">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label"><span class="stat-dot" style="background:var(--orange)"></span>等待中</div>
+                        <div class="stat-value" id="task-pending">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label"><span class="stat-dot" style="background:var(--text-muted)"></span>已完成</div>
+                        <div class="stat-value" id="task-done">0</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">任务队列</span>
+                        <div class="card-actions">
+                            <button class="btn btn-sm btn-primary" onclick="startPublish()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                开始发布
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="task-list" id="task-list">
+                            <div class="empty-state">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                <p>暂无发布任务</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="note-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">笔记详情</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="note-modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        let charts = {};
+        let currentData = { overview: null, notes: [], hotspots: null };
+
+        async function api(endpoint, options = {}) {
+            try {
+                const resp = await fetch(`/api/${endpoint}`, options);
+                return await resp.json();
+            } catch (e) {
+                console.error(`API error: ${endpoint}`, e);
+                return null;
+            }
+        }
+
+        function switchSection(name) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-item[data-section]').forEach(n => n.classList.remove('active'));
+            document.getElementById(`section-${name}`).classList.add('active');
+            document.querySelector(`.nav-item[data-section="${name}"]`).classList.add('active');
+            if (name === 'hotspots' && !currentData.hotspots) runAnalysis();
+            if (name === 'notes' && currentData.notes.length === 0) loadNotes();
+        }
+
+        async function loadOverview() {
+            const data = await api('overview');
+            if (!data) return;
+            currentData.overview = data;
+            document.getElementById('stat-crawled').textContent = data.crawled_count || 0;
+            document.getElementById('stat-hotspots').textContent = data.hotspots_found || 0;
+            document.getElementById('stat-generated').textContent = data.notes_generated || 0;
+            document.getElementById('stat-published').textContent = data.publish_success || 0;
+            renderEngagementBars(data);
+        }
+
+        function renderEngagementBars(data) {
+            const container = document.getElementById('engagement-bars');
+            const total = (data.total_likes || 0) + (data.total_collects || 0) + (data.total_comments || 0);
+            if (total === 0) { container.innerHTML = '<div class="empty-state"><p>暂无互动数据</p></div>'; return; }
+            const items = [
+                { label: '点赞', value: data.total_likes, color: 'var(--red)' },
+                { label: '收藏', value: data.total_collects, color: 'var(--orange)' },
+                { label: '评论', value: data.total_comments, color: 'var(--blue)' },
+            ];
+            container.innerHTML = items.map(item => `
+                <div class="engagement-bar">
+                    <span class="engagement-label">${item.label}</span>
+                    <div class="engagement-track">
+                        <div class="engagement-fill" style="width:${(item.value / total * 100).toFixed(1)}%;background:${item.color}"></div>
+                    </div>
+                    <span class="engagement-value">${formatNumber(item.value)}</span>
+                </div>
+            `).join('');
+        }
+
+        async function loadNotes() {
+            const data = await api('notes');
+            if (!data) return;
+            currentData.notes = data.notes;
+            document.getElementById('notes-count').textContent = data.total;
+            const tbody = document.getElementById('notes-table-body');
+            if (!data.notes.length) {
+                tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>暂无笔记数据，运行爬虫后显示</p></div></td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.notes.map(note => `
+                <tr style="cursor:pointer" onclick='showNoteDetail(${JSON.stringify(note).replace(/'/g, "&#39;")})'>
+                    <td style="color:var(--text-primary);font-weight:500;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(note.title)}</td>
+                    <td>${escapeHtml(note.author || '-')}</td>
+                    <td><span class="tag tag-red">${formatNumber(note.likes)}</span></td>
+                    <td><span class="tag tag-orange">${formatNumber(note.collects)}</span></td>
+                    <td><span class="tag tag-blue">${formatNumber(note.comments)}</span></td>
+                    <td>${(note.tags || []).slice(0, 2).map(t => `<span class="tag tag-purple">${escapeHtml(t)}</span>`).join(' ')}</td>
+                </tr>
+            `).join('');
+            renderEngagementChart(data.notes);
+        }
+
+        function renderEngagementChart(notes) {
+            const ctx = document.getElementById('engagement-chart');
+            if (charts.engagement) charts.engagement.destroy();
+            const sorted = [...notes].sort((a, b) => (b.likes || 0) - (a.likes || 0)).slice(0, 10);
+            charts.engagement = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sorted.map(n => (n.title || '').slice(0, 12) + '...'),
+                    datasets: [
+                        { label: '点赞', data: sorted.map(n => n.likes || 0), backgroundColor: 'rgba(255, 107, 107, 0.7)', borderRadius: 4 },
+                        { label: '收藏', data: sorted.map(n => n.collects || 0), backgroundColor: 'rgba(255, 165, 2, 0.7)', borderRadius: 4 },
+                        { label: '评论', data: sorted.map(n => n.comments || 0), backgroundColor: 'rgba(77, 171, 247, 0.7)', borderRadius: 4 },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#8b8b9e', font: { size: 12 } } } },
+                    scales: {
+                        x: { ticks: { color: '#5a5a72', font: { size: 11 } }, grid: { color: 'rgba(30,30,46,0.5)' } },
+                        y: { ticks: { color: '#5a5a72' }, grid: { color: 'rgba(30,30,46,0.5)' } }
+                    }
+                }
+            });
+        }
+
+        async function runAnalysis() {
+            const container = document.getElementById('hotspot-ranking');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>分析中...</div>';
+            const data = await api('hotspots');
+            if (!data) { container.innerHTML = '<div class="empty-state"><p>分析失败</p></div>'; return; }
+            currentData.hotspots = data;
+
+            const hotspots = data.hotspots || [];
+            if (hotspots.length) {
+                container.innerHTML = hotspots.slice(0, 8).map((h, i) => `
+                    <div class="hotspot-item">
+                        <span class="hotspot-rank ${i < 3 ? 'top' : 'normal'}">${i + 1}</span>
+                        <span class="hotspot-name">${escapeHtml(h.topic)}</span>
+                        <span class="tag ${h.type === 'tag_trend' ? 'tag-purple' : 'tag-green'}">${h.type === 'tag_trend' ? '标签' : '关键词'}</span>
+                        <span class="hotspot-confidence">${h.confidence}%</span>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<div class="empty-state"><p>未发现热点</p></div>';
+            }
+
+            const tp = data.title_patterns || {};
+            const tpCtx = document.getElementById('title-pattern-chart');
+            if (charts.titlePattern) charts.titlePattern.destroy();
+            charts.titlePattern = new Chart(tpCtx, {
+                type: 'radar',
+                data: {
+                    labels: ['Emoji 使用', '问句格式', '数字格式', '感叹号'],
+                    datasets: [{
+                        label: '标题特征 (%)',
+                        data: [tp.emoji_usage || 0, tp.question_format || 0, tp.number_format || 0, tp.exclamation || 0],
+                        backgroundColor: 'rgba(108, 92, 231, 0.15)',
+                        borderColor: 'rgba(108, 92, 231, 0.8)',
+                        pointBackgroundColor: 'rgba(108, 92, 231, 1)',
+                        pointBorderColor: '#16161f', pointBorderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#8b8b9e' } } },
+                    scales: { r: { beginAtZero: true, max: 100, ticks: { color: '#5a5a72', backdropColor: 'transparent' }, grid: { color: 'rgba(30,30,46,0.5)' }, pointLabels: { color: '#8b8b9e', font: { size: 13 } } } }
+                }
+            });
+
+            const tags = (data.tag_analysis || {}).top_tags || [];
+            const tagCtx = document.getElementById('tag-chart');
+            if (charts.tag) charts.tag.destroy();
+            charts.tag = new Chart(tagCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: tags.map(t => t[0]),
+                    datasets: [{ data: tags.map(t => t[1]), backgroundColor: ['#6c5ce7', '#a29bfe', '#00d2a0', '#4dabf7', '#ffa502', '#ff6b6b', '#fd79a8', '#74b9ff', '#55efc4', '#ffeaa7'], borderColor: '#16161f', borderWidth: 2 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#8b8b9e', padding: 12, font: { size: 12 } } } } }
+            });
+
+            renderTagCloud(tags);
+        }
+
+        function renderTagCloud(tags) {
+            const container = document.getElementById('tag-cloud');
+            if (!tags.length) { container.innerHTML = '<div class="empty-state"><p>暂无标签数据</p></div>'; return; }
+            container.innerHTML = tags.map(([name, count]) => `<span class="tag-cloud-item">${escapeHtml(name)}<span class="count">${count}</span></span>`).join('');
+        }
+
+        async function generateNotes() {
+            const btn = event.target.closest('.btn');
+            btn.disabled = true; btn.textContent = '生成中...';
+            const data = await api('generate', { method: 'POST' });
+            if (data && data.notes) { alert(`成功生成 ${data.count} 篇笔记`); loadNotes(); }
+            btn.disabled = false;
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> AI 生成';
+        }
+
+        async function startPublish() {
+            if (!currentData.notes.length) { alert('请先生成笔记内容'); return; }
+            const taskList = document.getElementById('task-list');
+            taskList.innerHTML = currentData.notes.slice(0, 3).map((note, i) => `
+                <div class="task-item" id="task-${i}">
+                    <span class="task-status pending"></span>
+                    <div class="task-info"><div class="task-title">${escapeHtml(note.title)}</div><div class="task-meta">等待发布...</div></div>
+                    <span class="task-time">-</span>
+                </div>
+            `).join('');
+            document.getElementById('task-running').textContent = '0';
+            document.getElementById('task-pending').textContent = Math.min(currentData.notes.length, 3);
+            document.getElementById('task-done').textContent = '0';
+
+            for (let i = 0; i < Math.min(currentData.notes.length, 3); i++) {
+                const el = document.getElementById(`task-${i}`);
+                el.querySelector('.task-status').className = 'task-status running';
+                el.querySelector('.task-meta').textContent = '发布中...';
+                document.getElementById('task-running').textContent = '1';
+                document.getElementById('task-pending').textContent = String(Math.min(currentData.notes.length, 3) - i - 1);
+                await new Promise(r => setTimeout(r, 1500));
+                el.querySelector('.task-status').className = 'task-status done';
+                el.querySelector('.task-meta').textContent = '发布完成';
+                el.querySelector('.task-time').textContent = new Date().toLocaleTimeString('zh-CN');
+                document.getElementById('task-running').textContent = '0';
+                document.getElementById('task-done').textContent = String(i + 1);
+            }
+        }
+
+        function showNoteDetail(note) {
+            const body = document.getElementById('note-modal-body');
+            body.innerHTML = `
+                <div class="note-detail-title">${escapeHtml(note.title)}</div>
+                <div class="note-detail-meta">
+                    <span>${escapeHtml(note.author || '未知')}</span>
+                    <span>${formatNumber(note.likes)} 赞</span>
+                    <span>${formatNumber(note.collects)} 收藏</span>
+                    <span>${formatNumber(note.comments)} 评论</span>
+                </div>
+                <div class="note-detail-content">${escapeHtml(note.content || '暂无内容')}</div>
+                <div class="note-detail-tags">${(note.tags || []).map(t => `<span class="tag tag-purple">${escapeHtml(t)}</span>`).join('')}</div>
+            `;
+            document.getElementById('note-modal').classList.add('show');
+        }
+
+        function closeModal() { document.getElementById('note-modal').classList.remove('show'); }
+
+        function formatNumber(n) {
+            if (n >= 10000) return (n / 10000).toFixed(1) + '万';
+            if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+            return String(n || 0);
+        }
+
+        function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+        document.addEventListener('DOMContentLoaded', () => { loadOverview(); loadNotes(); });
+        document.getElementById('note-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+    </script>
+</body>
+</html>
