@@ -1,0 +1,22 @@
+# 小红书自动运营系统依赖
+
+# 数据采集依赖 (MediaCrawler)
+# MediaCrawler 已单独安装，这里列出其主要依赖
+playwright>=1.40.0
+httpx>=0.25.0
+parsel>=1.8.0
+
+# 数据分析依赖
+pyyaml>=6.0
+jieba>=0.42.1  # 中文分词
+
+# 内容生成依赖
+openai>=1.0.0  # 或其他 AI 模型 SDK
+
+# 发布依赖
+aiohttp>=3.9.0
+requests>=2.31.0
+
+# 工具依赖
+python-dateutil>=2.8.0
+tqdm>=4.66.0

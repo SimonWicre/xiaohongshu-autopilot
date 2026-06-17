@@ -1,0 +1,57 @@
+# 小红书自动运营系统配置
+
+# 数据采集配置 (MediaCrawler)
+crawler:
+  platform: "xhs"
+  keywords: "编程副业,技术分享,AI工具"  # 搜索关键词
+  crawl_type: "search"  # search | detail | creator
+  max_notes: 50  # 每次爬取的最大笔记数
+  headless: false
+  enable_cdp: true  # 使用 CDP 模式连接真实浏览器
+
+# 数据分析配置
+analyzer:
+  # 热点识别阈值
+  min_likes: 1000  # 最低点赞数
+  min_collects: 500  # 最低收藏数
+  min_comments: 100  # 最低评论数
+  
+  # 分析维度
+  analyze:
+    - title_patterns  # 标题模式
+    - tag_analysis  # 标签分析
+    - content_structure  # 内容结构
+    - engagement_rate  # 互动率
+
+# 内容生成配置
+generator:
+  # AI 模型配置
+  model: "gpt-4"  # 或其他模型
+  
+  # 生成规则
+  rules:
+    max_title_length: 20  # 小红书标题限制
+    max_content_length: 1000  # 小红书正文限制
+    include_tags: true
+    max_tags: 5
+    
+  # 内容风格
+  style:
+    tone: "friendly"  # friendly | professional | humorous
+    emoji_density: "medium"  # low | medium | high
+
+# 发布配置 (xiaohongshu-mcp)
+publisher:
+  # xiaohongshu-mcp 服务地址
+  mcp_endpoint: "http://localhost:8080"
+  
+  # 发布规则
+  rules:
+    daily_limit: 10  # 每日发布上限
+    interval_minutes: 30  # 发布间隔（分钟）
+    auto_tag: true  # 自动添加标签
+    
+  # 图片配置
+  images:
+    source: "generated"  # generated | local | url
+    style: "xiaohongshu"  # xiaohongshu 风格
