@@ -6,6 +6,7 @@
 import asyncio
 from typing import List, Dict, Any
 from datetime import datetime
+from uuid import uuid4
 import random
 
 
@@ -45,10 +46,7 @@ class ContentGenerator:
                 i + 1
             )
             generated_notes.append(note)
-            
-            # 模拟生成延迟
-            await asyncio.sleep(0.5)
-        
+
         print(f"  ✅ 生成完成，共 {len(generated_notes)} 篇笔记")
         return generated_notes
     
@@ -73,7 +71,7 @@ class ContentGenerator:
         
         # 组装笔记
         note = {
-            "id": f"generated_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{index:03d}",
+            "id": f"generated_{uuid4().hex[:12]}",
             "title": title,
             "content": content,
             "tags": tags,
@@ -123,9 +121,9 @@ class ContentGenerator:
         # 随机选择模板
         title = random.choice(title_templates)
         
-        # 确保标题不超过限制
+        # 确保标题不超过限制（避免切断 emoji）
         if len(title) > self.max_title_length:
-            title = title[:self.max_title_length - 3] + "..."
+            title = self._truncate_at_boundary(title, self.max_title_length)
         
         return title
     
@@ -184,21 +182,33 @@ class ContentGenerator:
         
         content = content_templates.get(hotspot_type, content_templates["tag_trend"])
         
-        # 确保内容不超过限制
+        # 确保内容不超过限制（在句子边界截断）
         if len(content) > self.max_content_length:
-            content = content[:self.max_content_length - 3] + "..."
+            content = self._truncate_at_boundary(content, self.max_content_length)
         
         return content
     
+    @staticmethod
+    def _truncate_at_boundary(text: str, max_length: int) -> str:
+        """在句子/段落边界截断文本，避免切断 emoji 或句子"""
+        truncated = text[:max_length]
+        # 尝试在最后一个段落/句子/换行处截断
+        for sep in ["\n\n", "\n", "。", "！", "？", ".", "!", "?"]:
+            pos = truncated.rfind(sep)
+            if pos > max_length // 2:  # 至少保留一半内容
+                return truncated[:pos + len(sep)]
+        return truncated.rstrip() + "..."
+
     def _generate_tags(self, topic: str, hotspot: Dict[str, Any]) -> List[str]:
         """
         生成标签
         """
         tags = [topic]
-        
-        # 添加通用热门标签
+
+        # 添加通用热门标签（去重）
         common_tags = ["干货分享", "学习笔记", "经验总结", "实用技巧", "新手入门"]
-        tags.extend(random.sample(common_tags, min(3, len(common_tags))))
+        available = [t for t in common_tags if t != topic]
+        tags.extend(random.sample(available, min(3, len(available))))
         
         # 确保标签数量不超过限制
         if len(tags) > self.max_tags:

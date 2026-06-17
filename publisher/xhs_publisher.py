@@ -63,6 +63,14 @@ class XHSPublisher:
         print(f"\n  📤 发布第 {index} 篇笔记")
         print(f"     标题: {title}")
         print(f"     标签: {', '.join(tags)}")
+
+        if not title.strip() or not content.strip():
+            print(f"     ❌ 标题或内容为空，跳过")
+            return {
+                "note_id": note.get("id"),
+                "success": False,
+                "error": "标题或内容为空"
+            }
         
         try:
             # 调用 xiaohongshu-mcp 发布接口
@@ -101,51 +109,58 @@ class XHSPublisher:
     
     async def _call_mcp_publish(self, title: str, content: str, tags: List[str]) -> bool:
         """
-        调用 xiaohongshu-mcp 发布接口
+        调用 xiaohongshu-mcp 发布接口（含重试逻辑）
         """
-        # 构建 MCP 请求
-        # 注意：这里需要根据 xiaohongshu-mcp 的实际 API 格式进行调整
-        
-        # 组合内容和标签
         full_content = content
         if self.auto_tag and tags:
-            tag_str = " ".join([f"#{tag}" for tag in tags])
+            tag_str = " ".join([f"#{tag}" for tag in tags if tag.strip()])
             full_content = f"{content}\n\n{tag_str}"
-        
-        try:
-            # 尝试调用 MCP HTTP 接口
-            async with aiohttp.ClientSession() as session:
-                # 方式1: 直接 HTTP 调用
-                payload = {
-                    "tool": "publish_note",
-                    "arguments": {
-                        "title": title,
-                        "content": full_content,
-                        "tags": tags
-                    }
-                }
-                
-                async with session.post(
-                    f"{self.mcp_endpoint}/api/publish",
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=30)
-                ) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        return result.get("success", False)
-                    else:
-                        print(f"     MCP 返回状态码: {response.status}")
-                        return False
-                        
-        except aiohttp.ClientError as e:
-            print(f"     MCP 连接错误: {str(e)}")
-            # 如果 MCP 服务未连接，返回模拟成功（用于测试）
-            print(f"     ⚠️ MCP 服务未连接，模拟发布成功")
-            return True
-            
-        except Exception as e:
-            print(f"     调用异常: {str(e)}")
-            return False
+
+        payload = {
+            "tool": "publish_note",
+            "arguments": {
+                "title": title,
+                "content": full_content,
+                "tags": tags
+            }
+        }
+
+        max_retries = 3
+        retry_statuses = {429, 502, 503, 504}
+
+        for attempt in range(max_retries):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"{self.mcp_endpoint}/api/publish",
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        if response.status == 200:
+                            result = await response.json()
+                            return result.get("success", False)
+                        elif response.status in retry_statuses and attempt < max_retries - 1:
+                            wait = 2 ** attempt
+                            print(f"     MCP 返回 {response.status}，{wait}s 后重试 ({attempt+1}/{max_retries})")
+                            await asyncio.sleep(wait)
+                            continue
+                        else:
+                            print(f"     MCP 返回状态码: {response.status}")
+                            return False
+
+            except aiohttp.ClientError as e:
+                if attempt < max_retries - 1:
+                    wait = 2 ** attempt
+                    print(f"     MCP 连接错误: {e}，{wait}s 后重试 ({attempt+1}/{max_retries})")
+                    await asyncio.sleep(wait)
+                else:
+                    print(f"     MCP 连接错误: {e}")
+                    return False
+            except Exception as e:
+                print(f"     调用异常: {str(e)}")
+                return False
+
+        return False
     
     async def check_login_status(self) -> bool:
         """
@@ -161,7 +176,7 @@ class XHSPublisher:
                         result = await response.json()
                         return result.get("logged_in", False)
                     return False
-        except:
+        except Exception:
             return False
     
     async def get_publish_stats(self) -> Dict[str, Any]:

@@ -16,9 +16,9 @@ class XHSCrawler:
     def __init__(self, config: dict):
         self.config = config
         self.platform = config.get("platform", "xhs")
-        self.keywords = config.get("keywords", "").split(",")
+        self.keywords = [k.strip() for k in config.get("keywords", "").split(",") if k.strip()]
         self.crawl_type = config.get("crawl_type", "search")
-        self.max_notes = config.get("max_notes", 50)
+        self.max_notes = int(config.get("max_notes", 50))
         
     async def crawl(self) -> List[Dict[str, Any]]:
         """
@@ -68,18 +68,19 @@ class XHSCrawler:
         实际使用时应替换为真实采集逻辑
         """
         mock_notes = []
-        
+        default_keyword = self.keywords[0] if self.keywords else "热门话题"
+
         for i in range(min(10, self.max_notes)):
             note = {
                 "id": f"note_{i+1:04d}",
-                "title": f"🔥 {self.keywords[0]} 实战分享 #{i+1}",
-                "content": f"这是一篇关于{self.keywords[0]}的笔记，包含了很多实用的技巧和经验分享...",
+                "title": f"🔥 {default_keyword} 实战分享 #{i+1}",
+                "content": f"这是一篇关于{default_keyword}的笔记，包含了很多实用的技巧和经验分享...",
                 "author": f"用户_{i+1:03d}",
                 "likes": 1000 + (i * 500),
                 "collects": 500 + (i * 200),
                 "comments": 100 + (i * 50),
                 "shares": 50 + (i * 20),
-                "tags": [self.keywords[0], "干货分享", "经验总结"],
+                "tags": [default_keyword, "干货分享", "经验总结"],
                 "created_at": datetime.now().isoformat(),
                 "crawl_time": datetime.now().isoformat()
             }
@@ -91,11 +92,13 @@ class XHSCrawler:
         """保存原始采集数据"""
         data_dir = Path(__file__).parent.parent / "data" / "raw"
         data_dir.mkdir(parents=True, exist_ok=True)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"crawl_{timestamp}.json"
-        
-        with open(data_dir / filename, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        print(f"  原始数据已保存: data/raw/{filename}")
+
+        try:
+            with open(data_dir / filename, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            print(f"  原始数据已保存: data/raw/{filename}")
+        except (OSError, TypeError) as e:
+            print(f"  ⚠️ 保存原始数据失败: {e}")

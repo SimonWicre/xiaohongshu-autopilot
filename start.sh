@@ -11,9 +11,12 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
+# 切换到脚本所在目录
+cd "$(dirname "$0")" || exit 1
+
 # 检查依赖
 echo "📦 检查依赖..."
-pip3 install -q pyyaml aiohttp requests
+pip3 install -q -r requirements.txt
 
 # 检查 MediaCrawler
 MEDIA_CRAWLER_PATH="../MediaCrawler"
