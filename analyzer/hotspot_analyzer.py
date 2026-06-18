@@ -224,32 +224,51 @@ class HotspotAnalyzer:
                           tag_analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
         """识别热点话题"""
         hotspots = []
+        seen_topics = set()
 
-        # 基于标签识别热点
+        # 过滤掉数据源标签（不是真正的话题）
+        source_labels = {"微博热搜", "头条热榜", "百度热搜", "知乎热榜", "小红书", "干货分享", "学习笔记", "经验总结", "实用技巧", "新手入门"}
+
+        # 优先用笔记标题作为热点话题（按热度排序）
+        sorted_notes = sorted(notes, key=lambda n: self._safe_int(n.get("likes", 0)), reverse=True)
+        for note in sorted_notes[:10]:
+            title = note.get("title", "").strip()
+            if title and title not in seen_topics and title not in source_labels and len(title) >= 4:
+                seen_topics.add(title)
+                hotspots.append({
+                    "topic": title,
+                    "note_count": 1,
+                    "type": "title_trend",
+                    "confidence": round(min(self._safe_int(note.get("likes", 0)), 100000) / 1000, 1),
+                })
+                if len(hotspots) >= 5:
+                    break
+
+        # 补充：基于标签识别（过滤源标签）
         top_tags = tag_analysis.get("top_tags", [])
+        for tag, count in top_tags[:5]:
+            if tag not in seen_topics and tag not in source_labels and len(tag) >= 2:
+                seen_topics.add(tag)
+                hotspots.append({
+                    "topic": tag,
+                    "note_count": count,
+                    "type": "tag_trend",
+                    "confidence": round(min(count, len(notes)) / len(notes) * 100, 1) if notes else 0
+                })
 
-        for tag, count in top_tags[:5]:  # 取前5个热门标签
-            hotspot = {
-                "topic": tag,
-                "note_count": count,
-                "type": "tag_trend",
-                "confidence": round(min(count, len(notes)) / len(notes) * 100, 1) if notes else 0
-            }
-            hotspots.append(hotspot)
-
-        # 基于标题关键词识别热点
+        # 补充：基于标题关键词
         keyword_patterns = self._extract_keywords_from_titles(notes)
         for keyword, count in keyword_patterns.most_common(3):
-            if keyword not in [h["topic"] for h in hotspots]:
-                hotspot = {
+            if keyword not in seen_topics and keyword not in source_labels:
+                seen_topics.add(keyword)
+                hotspots.append({
                     "topic": keyword,
                     "note_count": count,
                     "type": "keyword_trend",
                     "confidence": round(min(count, len(notes)) / len(notes) * 100, 1) if notes else 0
-                }
-                hotspots.append(hotspot)
+                })
 
-        return hotspots
+        return hotspots[:8]
 
     def _extract_keywords_from_titles(self, notes: List[Dict[str, Any]]) -> Counter:
         """从标题中提取关键词（优先使用 jieba 分词）"""
