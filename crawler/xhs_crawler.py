@@ -31,14 +31,21 @@ class XHSCrawler:
         """执行数据采集"""
         print(f"  关键词: {self.keywords}")
         print(f"  采集类型: {self.crawl_type}")
-        print(f"  最大笔记数: {self.max_notes}")
 
-        if not MEDIA_CRAWLER_DIR.exists():
-            print("  ⚠️ MediaCrawler 未找到，使用模拟数据")
-            raw_data = self._generate_mock_data()
-        else:
-            raw_data = await self._run_media_crawler()
+        # 优先使用公开热搜源（无需登录，无封号风险）
+        from crawler.hot_search import fetch_all_hot_sources
+        raw_data = fetch_all_hot_sources(limit_per_source=self.max_notes // 3 + 1)
 
+        if not raw_data:
+            # 公开源失败，尝试 MediaCrawler（需要登录）
+            if MEDIA_CRAWLER_DIR.exists():
+                print("  ⚠️ 公开源无数据，尝试 MediaCrawler...")
+                raw_data = await self._run_media_crawler()
+            else:
+                print("  ⚠️ 所有数据源不可用，使用模拟数据")
+                raw_data = self._generate_mock_data()
+
+        raw_data = raw_data[:self.max_notes]
         self._save_raw_data(raw_data)
         return raw_data
 

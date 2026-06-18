@@ -1,0 +1,152 @@
+"""
+公开热搜数据采集模块
+从微博热搜、头条热榜、百度热搜等公开 API 获取数据，无需登录
+"""
+
+import re
+from typing import List, Dict, Any
+from datetime import datetime
+
+import requests
+
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+}
+
+
+def fetch_weibo_hot(limit: int = 30) -> List[Dict[str, Any]]:
+    """获取微博热搜（公开 API，无需登录）"""
+    url = "https://weibo.com/ajax/side/hotSearch"
+    try:
+        resp = requests.get(url, headers={**HEADERS, "Referer": "https://weibo.com/"}, timeout=15)
+        data = resp.json()
+        items = data.get("data", {}).get("realtime", [])
+
+        notes = []
+        for i, item in enumerate(items[:limit]):
+            word = item.get("word", "")
+            num = item.get("num", 0)
+            label = item.get("label_name", "")
+
+            notes.append({
+                "id": f"weibo_{i+1:04d}",
+                "title": word,
+                "content": f"微博热搜：{word}。热度值 {num}。{f'标签：{label}' if label else ''}",
+                "author": "微博热搜",
+                "likes": num,
+                "collects": 0,
+                "comments": item.get("raw_hot", 0),
+                "shares": 0,
+                "tags": ["微博热搜", word, label] if label else ["微博热搜", word],
+                "created_at": datetime.now().isoformat(),
+                "crawl_time": datetime.now().isoformat(),
+                "source": "weibo",
+                "rank": i + 1,
+            })
+
+        print(f"  ✅ 微博热搜获取 {len(notes)} 条")
+        return notes
+
+    except Exception as e:
+        print(f"  ⚠️ 微博热搜获取失败: {e}")
+        return []
+
+
+def fetch_toutiao_hot(limit: int = 30) -> List[Dict[str, Any]]:
+    """获取今日头条热榜（公开 API）"""
+    url = "https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        data = resp.json()
+        items = data.get("data", [])
+
+        notes = []
+        for i, item in enumerate(items[:limit]):
+            title = item.get("Title", "")
+            hot_value = item.get("HotValue", 0)
+
+            notes.append({
+                "id": f"toutiao_{i+1:04d}",
+                "title": title,
+                "content": f"头条热榜：{title}。热度值 {hot_value}。",
+                "author": "今日头条",
+                "likes": hot_value,
+                "collects": 0,
+                "comments": 0,
+                "shares": 0,
+                "tags": ["头条热榜", title[:10]],
+                "created_at": datetime.now().isoformat(),
+                "crawl_time": datetime.now().isoformat(),
+                "source": "toutiao",
+                "rank": i + 1,
+            })
+
+        print(f"  ✅ 头条热榜获取 {len(notes)} 条")
+        return notes
+
+    except Exception as e:
+        print(f"  ⚠️ 头条热榜获取失败: {e}")
+        return []
+
+
+def fetch_baidu_hot(limit: int = 30) -> List[Dict[str, Any]]:
+    """获取百度热搜（公开页面）"""
+    url = "https://top.baidu.com/board?tab=realtime"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        html = resp.text
+
+        pattern = re.compile(r'"word":"(.*?)".*?"hotScore":(\d+)', re.DOTALL)
+        matches = pattern.findall(html)
+
+        notes = []
+        for i, (word, score) in enumerate(matches[:limit]):
+            word = word.strip()
+            if not word:
+                continue
+            notes.append({
+                "id": f"baidu_{i+1:04d}",
+                "title": word,
+                "content": f"百度热搜：{word}。",
+                "author": "百度热搜",
+                "likes": int(score) if score else 0,
+                "collects": 0,
+                "comments": 0,
+                "shares": 0,
+                "tags": ["百度热搜", word],
+                "created_at": datetime.now().isoformat(),
+                "crawl_time": datetime.now().isoformat(),
+                "source": "baidu",
+                "rank": i + 1,
+            })
+
+        print(f"  ✅ 百度热搜获取 {len(notes)} 条")
+        return notes
+
+    except Exception as e:
+        print(f"  ⚠️ 百度热搜获取失败: {e}")
+        return []
+
+
+def fetch_all_hot_sources(limit_per_source: int = 20) -> List[Dict[str, Any]]:
+    """获取所有公开热搜数据"""
+    print("  🌐 从公开热搜源采集数据...")
+
+    all_notes = []
+    for fn in [fetch_weibo_hot, fetch_toutiao_hot, fetch_baidu_hot]:
+        try:
+            notes = fn(limit_per_source)
+            all_notes.extend(notes)
+        except Exception as e:
+            print(f"  ⚠️ {fn.__name__} 失败: {e}")
+
+    print(f"  ✅ 共采集 {len(all_notes)} 条热搜数据")
+    return all_notes
+
+
+if __name__ == "__main__":
+    notes = fetch_all_hot_sources(limit_per_source=10)
+    for n in notes[:8]:
+        print(f"  [{n['source']}] {n['title'][:30]} (热度: {n['likes']})")
+    print(f"  总计: {len(notes)} 条")
