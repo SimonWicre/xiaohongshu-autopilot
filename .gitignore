@@ -3,3 +3,8 @@ __pycache__/
 data/raw/
 *.db
 .env
+tools/MediaCrawler/.venv/
+tools/MediaCrawler/data/
+tools/MediaCrawler/_run_temp.py
+tools/MediaCrawler/node_modules/
+*.log
