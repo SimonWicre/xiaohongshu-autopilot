@@ -130,12 +130,59 @@ def fetch_baidu_hot(limit: int = 30) -> List[Dict[str, Any]]:
         return []
 
 
+def fetch_zhihu_hot(limit: int = 30) -> List[Dict[str, Any]]:
+    """获取知乎热榜（通过 tophub.today 聚合）"""
+    url = "https://tophub.today/n/mproPpoq6O"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+
+        # 提取知乎链接和标题
+        links = re.findall(
+            r'<a[^>]*href="(https?://www\.zhihu\.com[^"]*?)"[^>]*>(.*?)</a>',
+            resp.text, re.DOTALL
+        )
+
+        notes = []
+        seen = set()
+        for link_url, raw_title in links:
+            title = re.sub(r'<[^>]+>', '', raw_title).strip()
+            title = re.sub(r'&#x[0-9a-fA-F]+;?', '', title).strip()
+            if not title or len(title) < 5 or title in seen:
+                continue
+            seen.add(title)
+            if len(notes) >= limit:
+                break
+
+            notes.append({
+                "id": f"zhihu_{len(notes)+1:04d}",
+                "title": title,
+                "content": f"知乎热榜：{title}",
+                "author": "知乎热榜",
+                "likes": 0,
+                "collects": 0,
+                "comments": 0,
+                "shares": 0,
+                "tags": ["知乎热榜", title[:10]],
+                "created_at": datetime.now().isoformat(),
+                "crawl_time": datetime.now().isoformat(),
+                "source": "zhihu",
+                "rank": len(notes) + 1,
+            })
+
+        print(f"  ✅ 知乎热榜获取 {len(notes)} 条")
+        return notes
+
+    except Exception as e:
+        print(f"  ⚠️ 知乎热榜获取失败: {e}")
+        return []
+
+
 def fetch_all_hot_sources(limit_per_source: int = 20) -> List[Dict[str, Any]]:
     """获取所有公开热搜数据"""
     print("  🌐 从公开热搜源采集数据...")
 
     all_notes = []
-    for fn in [fetch_weibo_hot, fetch_toutiao_hot, fetch_baidu_hot, fetch_xhs_explore]:
+    for fn in [fetch_weibo_hot, fetch_toutiao_hot, fetch_baidu_hot, fetch_zhihu_hot, fetch_xhs_explore]:
         try:
             notes = fn(limit_per_source)
             all_notes.extend(notes)

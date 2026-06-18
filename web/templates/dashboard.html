@@ -425,6 +425,11 @@
                     百度热搜
                     <span class="nav-badge" id="count-baidu" style="background:#4dabf7">0</span>
                 </div>
+                <div class="nav-item" data-section="source-zhihu" onclick="switchSection('notes'); filterBySource('zhihu')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6v6H4z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6H4z"/><circle cx="17" cy="17" r="3"/></svg>
+                    知乎热榜
+                    <span class="nav-badge" id="count-zhihu" style="background:#4dabf7">0</span>
+                </div>
                 <div class="nav-item" data-section="source-xhs" onclick="switchSection('notes'); filterBySource('xiaohongshu')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                     小红书
@@ -720,7 +725,7 @@
             if (bottomBadge) bottomBadge.textContent = data.total;
 
             // 更新各数据源计数
-            const sources = { weibo: 0, toutiao: 0, baidu: 0, xiaohongshu: 0 };
+            const sources = { weibo: 0, toutiao: 0, baidu: 0, zhihu: 0, xiaohongshu: 0 };
             data.notes.forEach(n => { if (sources.hasOwnProperty(n.source)) sources[n.source]++; });
             Object.keys(sources).forEach(s => {
                 const el = document.getElementById(`count-${s}`);
@@ -742,8 +747,8 @@
                 return;
             }
 
-            const sourceLabels = { weibo: '微博', toutiao: '头条', baidu: '百度', xiaohongshu: '小红书' };
-            const sourceColors = { weibo: 'tag-red', toutiao: 'tag-orange', baidu: 'tag-blue', xiaohongshu: 'tag-purple' };
+            const sourceLabels = { weibo: '微博', toutiao: '头条', baidu: '百度', zhihu: '知乎', xiaohongshu: '小红书' };
+            const sourceColors = { weibo: 'tag-red', toutiao: 'tag-orange', baidu: 'tag-blue', zhihu: 'tag-blue', xiaohongshu: 'tag-purple' };
 
             tbody.innerHTML = notes.map(note => `
                 <tr style="cursor:pointer" onclick='showNoteDetail(${JSON.stringify(note).replace(/'/g, "&#39;")})'>
