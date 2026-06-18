@@ -41,6 +41,13 @@ def load_latest_crawl_data():
     return []
 
 
+@app.after_request
+def add_no_cache(response):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.route("/")
 def index():
     return render_template("dashboard.html")
