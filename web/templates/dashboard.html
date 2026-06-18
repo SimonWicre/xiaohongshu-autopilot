@@ -568,6 +568,19 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="card" id="generated-notes-card" style="margin-top:16px;display:none">
+                    <div class="card-header">
+                        <span class="card-title">AI 生成的笔记</span>
+                        <div class="card-actions">
+                            <button class="btn btn-sm btn-primary" onclick="publishGenerated()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                发布
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body" id="generated-notes-body"></div>
+                </div>
             </div>
 
             <!-- Tasks -->
@@ -852,13 +865,45 @@
             container.innerHTML = tags.map(([name, count]) => `<span class="tag-cloud-item">${escapeHtml(name)}<span class="count">${count}</span></span>`).join('');
         }
 
+        let generatedNotes = [];
+
         async function generateNotes() {
             const btn = event.target.closest('.btn');
-            btn.disabled = true; btn.textContent = '生成中...';
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;margin:0"></div> 生成中...';
             const data = await api('generate', { method: 'POST' });
-            if (data && data.notes) { alert(`成功生成 ${data.count} 篇笔记`); loadNotes(); }
             btn.disabled = false;
             btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> AI 生成';
+
+            if (data && data.notes) {
+                generatedNotes = data.notes;
+                renderGeneratedNotes(data.notes);
+            }
+        }
+
+        function renderGeneratedNotes(notes) {
+            const card = document.getElementById('generated-notes-card');
+            const body = document.getElementById('generated-notes-body');
+            card.style.display = 'block';
+
+            body.innerHTML = notes.map((note, i) => `
+                <div style="margin-bottom:20px;padding:16px;background:var(--bg-secondary);border-radius:var(--radius-sm);border:1px solid var(--border)">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                        <div style="font-size:16px;font-weight:600;color:var(--text-primary)">${escapeHtml(note.title)}</div>
+                        <span class="tag tag-green">AI 生成</span>
+                    </div>
+                    <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">
+                        话题: ${escapeHtml(note.topic)} | ${note.tags.map(t => '#' + t).join(' ')}
+                    </div>
+                    <div style="font-size:14px;line-height:1.8;color:var(--text-secondary);white-space:pre-wrap">${escapeHtml(note.content)}</div>
+                </div>
+            `).join('');
+        }
+
+        function publishGenerated() {
+            if (!generatedNotes.length) { alert('请先生成笔记'); return; }
+            switchSection('tasks');
+            startPublish();
         }
 
         async function startPublish() {
