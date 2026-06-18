@@ -342,6 +342,34 @@
             </div>
 
             <div class="nav-section">
+                <div class="nav-label">数据源</div>
+                <div class="nav-item" data-section="source-weibo" onclick="switchSection('notes'); filterBySource('weibo')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                    微博热搜
+                    <span class="nav-badge" id="count-weibo" style="background:#ff6b6b">0</span>
+                </div>
+                <div class="nav-item" data-section="source-toutiao" onclick="switchSection('notes'); filterBySource('toutiao')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M9 9h6v6H9z"/></svg>
+                    头条热榜
+                    <span class="nav-badge" id="count-toutiao" style="background:#ffa502">0</span>
+                </div>
+                <div class="nav-item" data-section="source-baidu" onclick="switchSection('notes'); filterBySource('baidu')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    百度热搜
+                    <span class="nav-badge" id="count-baidu" style="background:#4dabf7">0</span>
+                </div>
+                <div class="nav-item" data-section="source-xhs" onclick="switchSection('notes'); filterBySource('xiaohongshu')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    小红书
+                    <span class="nav-badge" id="count-xiaohongshu" style="background:#ff6b6b">0</span>
+                </div>
+                <div class="nav-item" onclick="switchSection('notes'); filterBySource('all')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/></svg>
+                    全部数据
+                </div>
+            </div>
+
+            <div class="nav-section">
                 <div class="nav-label">管理</div>
                 <div class="nav-item" data-section="notes" onclick="switchSection('notes')">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -462,7 +490,7 @@
                     <div class="card-body">
                         <div class="table-wrapper">
                             <table>
-                                <thead><tr><th>标题</th><th>作者</th><th>点赞</th><th>收藏</th><th>评论</th><th>标签</th></tr></thead>
+                                <thead><tr><th>标题</th><th>来源</th><th>作者</th><th>热度</th><th>收藏</th><th>标签</th></tr></thead>
                                 <tbody id="notes-table-body"><tr><td colspan="6"><div class="loading"><div class="spinner"></div>加载中...</div></td></tr></tbody>
                             </table>
                         </div>
@@ -540,13 +568,21 @@
             }
         }
 
+        let currentFilter = 'all';
+
         function switchSection(name) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('.nav-item[data-section]').forEach(n => n.classList.remove('active'));
             document.getElementById(`section-${name}`).classList.add('active');
-            document.querySelector(`.nav-item[data-section="${name}"]`).classList.add('active');
+            const navItem = document.querySelector(`.nav-item[data-section="${name}"]`);
+            if (navItem) navItem.classList.add('active');
             if (name === 'hotspots' && !currentData.hotspots) runAnalysis();
             if (name === 'notes' && currentData.notes.length === 0) loadNotes();
+        }
+
+        function filterBySource(source) {
+            currentFilter = source;
+            renderNotesTable();
         }
 
         async function loadOverview() {
@@ -585,22 +621,44 @@
             if (!data) return;
             currentData.notes = data.notes;
             document.getElementById('notes-count').textContent = data.total;
+
+            // 更新各数据源计数
+            const sources = { weibo: 0, toutiao: 0, baidu: 0, xiaohongshu: 0 };
+            data.notes.forEach(n => { if (sources.hasOwnProperty(n.source)) sources[n.source]++; });
+            Object.keys(sources).forEach(s => {
+                const el = document.getElementById(`count-${s}`);
+                if (el) el.textContent = sources[s];
+            });
+
+            renderNotesTable();
+            renderEngagementChart(data.notes);
+        }
+
+        function renderNotesTable() {
             const tbody = document.getElementById('notes-table-body');
-            if (!data.notes.length) {
-                tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>暂无笔记数据，运行爬虫后显示</p></div></td></tr>';
+            const notes = currentFilter === 'all'
+                ? currentData.notes
+                : currentData.notes.filter(n => n.source === currentFilter);
+
+            if (!notes.length) {
+                tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>暂无数据</p></div></td></tr>';
                 return;
             }
-            tbody.innerHTML = data.notes.map(note => `
+
+            const sourceLabels = { weibo: '微博', toutiao: '头条', baidu: '百度', xiaohongshu: '小红书' };
+            const sourceColors = { weibo: 'tag-red', toutiao: 'tag-orange', baidu: 'tag-blue', xiaohongshu: 'tag-purple' };
+
+            tbody.innerHTML = notes.map(note => `
                 <tr style="cursor:pointer" onclick='showNoteDetail(${JSON.stringify(note).replace(/'/g, "&#39;")})'>
-                    <td style="color:var(--text-primary);font-weight:500;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(note.title)}</td>
+                    <td style="color:var(--text-primary);font-weight:500;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(note.title)}</td>
+                    <td><span class="tag ${sourceColors[note.source] || 'tag-purple'}">${sourceLabels[note.source] || note.source || '-'}</span></td>
                     <td>${escapeHtml(note.author || '-')}</td>
                     <td><span class="tag tag-red">${formatNumber(note.likes)}</span></td>
                     <td><span class="tag tag-orange">${formatNumber(note.collects)}</span></td>
-                    <td><span class="tag tag-blue">${formatNumber(note.comments)}</span></td>
                     <td>${(note.tags || []).slice(0, 2).map(t => `<span class="tag tag-purple">${escapeHtml(t)}</span>`).join(' ')}</td>
                 </tr>
             `).join('');
-            renderEngagementChart(data.notes);
+        }
         }
 
         function renderEngagementChart(notes) {
