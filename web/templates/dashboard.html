@@ -317,11 +317,31 @@
 
         @media (max-width: 768px) {
             .app { grid-template-columns: 1fr; }
-            .sidebar { display: none; }
-            .main { margin-left: 0; padding: 16px; padding-bottom: 80px; }
+            .sidebar {
+                position: fixed;
+                width: 72px;
+                padding: 16px 6px;
+            }
+            .sidebar-logo-text { display: none; }
+            .sidebar-logo { justify-content: center; padding: 0 0 16px; }
+            .sidebar-logo-icon { width: 36px; height: 36px; }
+            .nav-label { display: none; }
+            .nav-item {
+                flex-direction: column;
+                font-size: 10px;
+                padding: 8px 4px;
+                gap: 3px;
+                justify-content: center;
+                text-align: center;
+            }
+            .nav-item svg { width: 20px; height: 20px; }
+            .nav-badge { margin-left: 0; font-size: 9px; position: absolute; top: 2px; right: 2px; }
+            .nav-item { position: relative; }
+            .sidebar-footer { display: none; }
+            .main { margin-left: 72px; padding: 16px; padding-bottom: 16px; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .grid-2, .grid-3 { grid-template-columns: 1fr; }
-            .bottom-nav { display: flex; }
+            .bottom-nav { display: none; }
         }
 
         /* Bottom navigation for mobile */
