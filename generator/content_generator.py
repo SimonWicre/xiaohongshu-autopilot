@@ -1,76 +1,75 @@
 """
 内容生成模块
-基于分析结果生成小红书笔记内容
+支持 AI 模型生成（OpenAI 兼容接口）+ 模板回退
 """
 
 import asyncio
+import json
 from typing import List, Dict, Any
 from datetime import datetime
 from uuid import uuid4
 import random
 
+import aiohttp
+
 
 class ContentGenerator:
-    """内容生成器"""
-    
+    """内容生成器 — 优先使用 AI 模型，回退到模板"""
+
     def __init__(self, config: dict):
         self.config = config
         self.model = config.get("model", "gpt-4")
         self.rules = config.get("rules", {})
         self.style = config.get("style", {})
-        
+
+        # AI API 配置
+        ai_config = config.get("ai", {})
+        self.ai_api_base = ai_config.get("api_base", "")
+        self.ai_api_key = ai_config.get("api_key", "")
+        self.ai_model = ai_config.get("model", self.model)
+
         # 小红书内容规范
         self.max_title_length = self.rules.get("max_title_length", 20)
         self.max_content_length = self.rules.get("max_content_length", 1000)
         self.include_tags = self.rules.get("include_tags", True)
         self.max_tags = self.rules.get("max_tags", 5)
-        
+
+        self.use_ai = bool(self.ai_api_base and self.ai_api_key)
+
     async def generate(self, analysis_result: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        基于分析结果生成笔记内容
-        """
+        """基于分析结果生成笔记内容"""
         hotspots = analysis_result.get("hotspots", [])
         recommendations = analysis_result.get("recommendations", [])
         title_patterns = analysis_result.get("title_patterns", {})
-        
-        print(f"  基于 {len(hotspots)} 个热点生成内容...")
-        
+
+        mode = "AI 模型" if self.use_ai else "模板"
+        print(f"  基于 {len(hotspots)} 个热点生成内容（{mode}）...")
+
         generated_notes = []
-        
-        # 为每个热点生成笔记
-        for i, hotspot in enumerate(hotspots[:3]):  # 先处理前3个热点
+        for i, hotspot in enumerate(hotspots[:3]):
             note = await self._generate_note_for_hotspot(
-                hotspot, 
-                title_patterns,
-                recommendations,
-                i + 1
+                hotspot, title_patterns, recommendations, i + 1
             )
             generated_notes.append(note)
 
         print(f"  ✅ 生成完成，共 {len(generated_notes)} 篇笔记")
         return generated_notes
-    
+
     async def _generate_note_for_hotspot(self, hotspot: Dict[str, Any],
                                         title_patterns: Dict[str, Any],
                                         recommendations: List[str],
                                         index: int) -> Dict[str, Any]:
-        """
-        为单个热点生成笔记
-        """
         topic = hotspot.get("topic", "未知话题")
         hotspot_type = hotspot.get("type", "tag_trend")
-        
-        # 生成标题
-        title = self._generate_title(topic, title_patterns, index)
-        
-        # 生成正文
-        content = self._generate_content(topic, hotspot_type, recommendations)
-        
-        # 生成标签
-        tags = self._generate_tags(topic, hotspot)
-        
-        # 组装笔记
-        note = {
+
+        if self.use_ai:
+            title, content, tags = await self._ai_generate(topic, hotspot_type, recommendations)
+        else:
+            title = self._template_title(topic, title_patterns, index)
+            content = self._template_content(topic, hotspot_type)
+            tags = self._template_tags(topic)
+
+        return {
             "id": f"generated_{uuid4().hex[:12]}",
             "title": title,
             "content": content,
@@ -80,61 +79,92 @@ class ContentGenerator:
             "generated_at": datetime.now().isoformat(),
             "metadata": {
                 "hotspot_confidence": hotspot.get("confidence", 0),
-                "hotspot_note_count": hotspot.get("note_count", 0)
+                "hotspot_note_count": hotspot.get("note_count", 0),
+                "generator": "ai" if self.use_ai else "template"
             }
         }
-        
-        return note
-    
-    def _generate_title(self, topic: str, title_patterns: Dict[str, Any], index: int) -> str:
-        """
-        生成标题
-        遵循小红书标题规范：不超过20字，吸引眼球
-        """
-        # 标题模板库
-        title_templates = [
+
+    async def _ai_generate(self, topic: str, hotspot_type: str,
+                           recommendations: List[str]) -> tuple:
+        """调用 AI 模型生成标题、正文、标签"""
+        rec_text = "\n".join(f"- {r}" for r in recommendations[:3]) if recommendations else ""
+
+        prompt = f"""你是一个小红书爆款笔记写手。请根据以下话题生成一篇小红书笔记。
+
+话题：{topic}
+话题类型：{hotspot_type}
+创作建议：{rec_text or '无'}
+
+要求：
+1. 标题不超过{self.max_title_length}字，要有 emoji，吸引眼球
+2. 正文不超过{self.max_content_length}字，结构清晰，有 emoji 分段
+3. 语气亲切自然，像朋友分享
+4. 生成 3-5 个相关标签
+
+请严格按以下 JSON 格式返回，不要有其他内容：
+{{"title": "标题", "content": "正文", "tags": ["标签1", "标签2"]}}"""
+
+        try:
+            result = await self._call_ai_api(prompt)
+            data = json.loads(result)
+            title = data.get("title", "")[:self.max_title_length]
+            content = data.get("content", "")[:self.max_content_length]
+            tags = data.get("tags", [])[:self.max_tags]
+            if title and content:
+                return title, content, tags
+        except Exception as e:
+            print(f"  ⚠️ AI 生成失败，回退到模板: {e}")
+
+        title_patterns = {}
+        return (
+            self._template_title(topic, title_patterns, 1),
+            self._template_content(topic, hotspot_type),
+            self._template_tags(topic)
+        )
+
+    async def _call_ai_api(self, prompt: str) -> str:
+        """调用 OpenAI 兼容 API（支持 Ollama、OpenAI、Claude 等）"""
+        url = f"{self.ai_api_base.rstrip('/')}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.ai_api_key}"
+        }
+        payload = {
+            "model": self.ai_model,
+            "messages": [
+                {"role": "system", "content": "你是小红书内容创作专家，擅长写爆款笔记。只返回 JSON，不要其他内容。"},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.8,
+            "max_tokens": 1500
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers,
+                                    timeout=aiohttp.ClientTimeout(total=60)) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                return data["choices"][0]["message"]["content"].strip()
+
+    # ── 模板回退 ──────────────────────────────────────────────
+
+    def _template_title(self, topic: str, title_patterns: Dict[str, Any], index: int) -> str:
+        templates = [
             f"🔥 {topic} 实战干货分享！",
             f"💡 {topic} 必看攻略！",
             f"✨ {topic} 保姆级教程！",
             f"🎯 {topic} 核心要点！",
             f"📚 {topic} 完整指南！",
-            f"💪 {topic} 实战经验！",
-            f"🌟 {topic} 精华总结！",
-            f"🚀 {topic} 快速入门！",
-            f"💎 {topic} 深度解析！",
-            f"🎓 {topic} 学习笔记！"
         ]
-        
-        # 根据分析结果调整标题风格
-        if title_patterns.get("emoji_usage", 0) > 50:
-            # 高 emoji 使用率，保持 emoji
-            pass
-        
         if title_patterns.get("question_format", 0) > 30:
-            # 高问句使用率，添加问句变体
-            title_templates.extend([
-                f"🤔 {topic} 怎么学？",
-                f"❓ {topic} 有哪些技巧？",
-                f"💡 {topic} 如何快速上手？"
-            ])
-        
-        # 随机选择模板
-        title = random.choice(title_templates)
-        
-        # 确保标题不超过限制（避免切断 emoji）
+            templates.extend([f"🤔 {topic} 怎么学？", f"❓ {topic} 有哪些技巧？"])
+        title = random.choice(templates)
         if len(title) > self.max_title_length:
             title = self._truncate_at_boundary(title, self.max_title_length)
-        
         return title
-    
-    def _generate_content(self, topic: str, hotspot_type: str, recommendations: List[str]) -> str:
-        """
-        生成正文内容
-        遵循小红书正文规范：不超过1000字，结构清晰
-        """
-        # 内容模板库
-        content_templates = {
-            "tag_trend": f"""📝 {topic} 实战分享
+
+    def _template_content(self, topic: str, hotspot_type: str) -> str:
+        content = f"""📝 {topic} 实战分享
 
 大家好！今天来分享一下 {topic} 的实用干货。
 
@@ -148,70 +178,23 @@ class ContentGenerator:
 - 技巧二：多看优秀案例，学习借鉴
 - 技巧三：坚持练习，不断优化
 
-✨ 个人经验：
-我在学习 {topic} 的过程中，发现最重要的是坚持和实践。只有不断尝试，才能真正掌握。
-
-📚 推荐资源：
-- 官方文档
-- 优质教程
-- 实战项目
-
-希望对大家有帮助！有问题欢迎交流～""",
-            
-            "keyword_trend": f"""🎯 {topic} 深度解析
-
-最近很多人在讨论 {topic}，今天来给大家详细解析一下。
-
-📊 现状分析：
-{topic} 目前非常火热，很多人都在学习和实践。
-
-💡 核心概念：
-{topic} 的核心在于理解其原理和应用场景。
-
-🔥 实战技巧：
-1. 从入门到精通的路径
-2. 常见问题及解决方案
-3. 最佳实践分享
-
-🌟 案例分享：
-分享几个 {topic} 的实际应用案例，供大家参考。
-
-💬 互动话题：
-你们在学习 {topic} 过程中遇到过哪些问题？欢迎留言讨论！"""
-        }
-        
-        content = content_templates.get(hotspot_type, content_templates["tag_trend"])
-        
-        # 确保内容不超过限制（在句子边界截断）
+希望对大家有帮助！有问题欢迎交流～"""
         if len(content) > self.max_content_length:
             content = self._truncate_at_boundary(content, self.max_content_length)
-        
         return content
-    
+
+    def _template_tags(self, topic: str) -> List[str]:
+        tags = [topic]
+        common = ["干货分享", "学习笔记", "经验总结", "实用技巧", "新手入门"]
+        available = [t for t in common if t != topic]
+        tags.extend(random.sample(available, min(3, len(available))))
+        return tags[:self.max_tags]
+
     @staticmethod
     def _truncate_at_boundary(text: str, max_length: int) -> str:
-        """在句子/段落边界截断文本，避免切断 emoji 或句子"""
         truncated = text[:max_length]
-        # 尝试在最后一个段落/句子/换行处截断
         for sep in ["\n\n", "\n", "。", "！", "？", ".", "!", "?"]:
             pos = truncated.rfind(sep)
-            if pos > max_length // 2:  # 至少保留一半内容
+            if pos > max_length // 2:
                 return truncated[:pos + len(sep)]
         return truncated.rstrip() + "..."
-
-    def _generate_tags(self, topic: str, hotspot: Dict[str, Any]) -> List[str]:
-        """
-        生成标签
-        """
-        tags = [topic]
-
-        # 添加通用热门标签（去重）
-        common_tags = ["干货分享", "学习笔记", "经验总结", "实用技巧", "新手入门"]
-        available = [t for t in common_tags if t != topic]
-        tags.extend(random.sample(available, min(3, len(available))))
-        
-        # 确保标签数量不超过限制
-        if len(tags) > self.max_tags:
-            tags = tags[:self.max_tags]
-        
-        return tags

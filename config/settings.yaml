@@ -25,16 +25,23 @@ analyzer:
 
 # 内容生成配置
 generator:
-  # AI 模型配置
-  model: "gpt-4"  # 或其他模型
-  
+  # AI 模型配置（OpenAI 兼容接口）
+  model: "gpt-4"
+
+  # AI API 配置（支持 Ollama、OpenAI、Claude 等）
+  # 留空则使用模板生成
+  ai:
+    api_base: ""  # 例如 "http://localhost:11434/v1" (Ollama) 或 "https://api.openai.com/v1"
+    api_key: ""   # Ollama 填 "ollama"，OpenAI 填 "sk-xxx"
+    model: ""     # 例如 "qwen2.5:14b" 或 "gpt-4o"
+
   # 生成规则
   rules:
     max_title_length: 20  # 小红书标题限制
     max_content_length: 1000  # 小红书正文限制
     include_tags: true
     max_tags: 5
-    
+
   # 内容风格
   style:
     tone: "friendly"  # friendly | professional | humorous
