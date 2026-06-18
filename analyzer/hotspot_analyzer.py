@@ -240,6 +240,13 @@ class HotspotAnalyzer:
                     "note_count": 1,
                     "type": "title_trend",
                     "confidence": round(min(self._safe_int(note.get("likes", 0)), 100000) / 1000, 1),
+                    "source_notes": [{
+                        "title": title,
+                        "content": note.get("content", ""),
+                        "source": note.get("source", ""),
+                        "likes": self._safe_int(note.get("likes", 0)),
+                        "author": note.get("author", ""),
+                    }],
                 })
                 if len(hotspots) >= 5:
                     break

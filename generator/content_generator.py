@@ -78,9 +78,10 @@ class ContentGenerator:
                                         index: int) -> Dict[str, Any]:
         topic = hotspot.get("topic", "未知话题")
         hotspot_type = hotspot.get("type", "tag_trend")
+        source_notes = hotspot.get("source_notes", [])
 
         if self.use_ai:
-            title, content, tags = await self._ai_generate(topic, hotspot_type, recommendations)
+            title, content, tags = await self._ai_generate(topic, hotspot_type, recommendations, source_notes, index)
         else:
             title = self._template_title(topic, title_patterns, index)
             content = self._template_content(topic, hotspot_type)
@@ -102,21 +103,56 @@ class ContentGenerator:
         }
 
     async def _ai_generate(self, topic: str, hotspot_type: str,
-                           recommendations: List[str]) -> tuple:
+                           recommendations: List[str],
+                           source_notes: List[Dict], index: int) -> tuple:
         """调用 AI 模型生成标题、正文、标签"""
-        rec_text = "\n".join(f"- {r}" for r in recommendations[:3]) if recommendations else ""
 
-        prompt = f"""你是一个小红书爆款笔记写手。请根据以下话题生成一篇小红书笔记。
+        # 人设库 — 每篇随机选一个
+        personas = [
+            "你是一个知识渊博的科普博主，擅长把复杂的事情用通俗易懂的方式讲清楚，喜欢用数据和事实说话。",
+            "你是一个亲历者，刚经历过这件事，用第一人称分享真实感受和细节，语气真实不做作。",
+            "你是一个犀利的测评达人，喜欢分析利弊，给出明确的观点和建议，有理有据。",
+            "你是一个生活攻略王，擅长总结实用技巧，给出可操作的步骤和清单。",
+            "你是一个有态度的吐槽型博主，观点鲜明，语言幽默犀利，善于发现别人忽略的角度。",
+        ]
 
-话题：{topic}
-话题类型：{hotspot_type}
-创作建议：{rec_text or '无'}
+        # 内容格式库
+        formats = [
+            "用「清单体」：3-5 个要点，每个要点有具体细节和你的见解",
+            "用「故事体」：从一个具体场景切入，有起承转合，结尾有金句总结",
+            "用「问答体」：先抛出问题，再层层解答，最后给一个反问引发互动",
+            "用「教程体」：Step by step 教别人怎么做，每步有具体操作",
+            "用「对比体」：对比不同观点/方案，给出你的推荐和理由",
+        ]
 
-要求：
-1. 标题不超过{self.max_title_length}字，要有 emoji，吸引眼球
-2. 正文不超过{self.max_content_length}字，结构清晰，有 emoji 分段
-3. 语气亲切自然，像朋友分享
-4. 生成 3-5 个相关标签
+        persona = random.choice(personas)
+        fmt = random.choice(formats)
+
+        # 构建素材上下文
+        context_parts = []
+        for sn in source_notes[:3]:
+            src = sn.get("source", "")
+            content = sn.get("content", "")
+            likes = sn.get("likes", 0)
+            if content:
+                context_parts.append(f"[来源:{src} 热度:{likes}] {content}")
+        context = "\n".join(context_parts) if context_parts else "无原始素材"
+
+        prompt = f"""{persona}
+
+现在有一个热点话题需要你写一篇小红书笔记。
+
+【热点话题】{topic}
+【原始素材】{context}
+【创作格式】{fmt}
+
+写作要求：
+1. 标题：不超过{self.max_title_length}字，必须有 emoji，要让人忍不住点进来
+2. 正文：不超过{self.max_content_length}字，必须包含【原始素材】中的具体信息（数据、事件细节、人名等）
+3. 禁止写空话套话（如"干货分享""核心要点""实用技巧"这类模板话术）
+4. 要有自己的观点和态度，不要两边讨好
+5. 用口语化表达，像发朋友圈一样自然
+6. 生成 3-5 个相关标签
 
 请严格按以下 JSON 格式返回，不要有其他内容：
 {{"title": "标题", "content": "正文", "tags": ["标签1", "标签2"]}}"""
