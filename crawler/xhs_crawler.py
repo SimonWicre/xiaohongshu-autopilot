@@ -28,24 +28,43 @@ class XHSCrawler:
         self.headless = config.get("headless", False)
 
     async def crawl(self) -> List[Dict[str, Any]]:
-        """执行数据采集"""
+        """执行数据采集 — 合并所有数据源"""
         print(f"  关键词: {self.keywords}")
         print(f"  采集类型: {self.crawl_type}")
 
-        # 优先使用公开热搜源（无需登录，无封号风险）
+        all_data = []
+
+        # 数据源 1：公开热搜（微博/头条/百度）
+        print("\n  ── 数据源 1: 公开热搜 ──")
         from crawler.hot_search import fetch_all_hot_sources
-        raw_data = fetch_all_hot_sources(limit_per_source=self.max_notes // 3 + 1)
+        hot_data = fetch_all_hot_sources(limit_per_source=self.max_notes // 3 + 1)
+        if hot_data:
+            all_data.extend(hot_data)
+            print(f"  ✅ 公开热搜: {len(hot_data)} 条")
 
-        if not raw_data:
-            # 公开源失败，尝试 MediaCrawler（需要登录）
-            if MEDIA_CRAWLER_DIR.exists():
-                print("  ⚠️ 公开源无数据，尝试 MediaCrawler...")
-                raw_data = await self._run_media_crawler()
-            else:
-                print("  ⚠️ 所有数据源不可用，使用模拟数据")
-                raw_data = self._generate_mock_data()
+        # 数据源 2：MediaCrawler（需要登录）
+        print("\n  ── 数据源 2: MediaCrawler ──")
+        if MEDIA_CRAWLER_DIR.exists():
+            try:
+                crawler_data = await self._run_media_crawler()
+                if crawler_data:
+                    all_data.extend(crawler_data)
+                    print(f"  ✅ MediaCrawler: {len(crawler_data)} 条")
+            except Exception as e:
+                print(f"  ⚠️ MediaCrawler 失败: {e}")
+        else:
+            print("  ⏭️ MediaCrawler 未安装，跳过")
 
-        raw_data = raw_data[:self.max_notes]
+        # 数据源 3：模拟数据（兜底）
+        if not all_data:
+            print("\n  ── 数据源 3: 模拟数据 ──")
+            mock_data = self._generate_mock_data()
+            all_data.extend(mock_data)
+            print(f"  ✅ 模拟数据: {len(mock_data)} 条")
+
+        raw_data = all_data[:self.max_notes]
+        print(f"\n  📊 合计采集 {len(raw_data)} 条数据")
+
         self._save_raw_data(raw_data)
         return raw_data
 
