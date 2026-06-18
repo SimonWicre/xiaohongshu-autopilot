@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% set active = "hotspots" %}
+{% block title %}{{ source_name }} - 小红书运营看板{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">{{ source_name }}</h1>
+    <p class="page-subtitle"><a href="/hotspots" style="color:var(--accent-light)">← 返回热点趋势</a></p>
+</div>
+<div class="card">
+    <div class="card-header"><span class="card-title">热榜列表</span><div class="card-actions"><a class="btn btn-sm" href="/source/{{ source }}">刷新</a></div></div>
+    <div class="card-body">
+        <div class="table-wrapper">
+            <table><thead><tr><th>#</th><th>标题</th><th>热度</th><th>标签</th></tr></thead>
+            <tbody id="source-table"><tr><td colspan="4"><div class="loading"><div class="spinner"></div>加载中...</div></td></tr></tbody></table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+function fmt(n){if(n>=10000)return(n/10000).toFixed(1)+'万';if(n>=1000)return(n/1000).toFixed(1)+'k';return String(n||0)}
+document.addEventListener('DOMContentLoaded',async function(){
+    var r=await fetch('/api/notes?source={{ source }}');var d=await r.json();
+    var tb=document.getElementById('source-table');tb.innerHTML='';
+    if(!d.notes||!d.notes.length){tb.innerHTML='<tr><td colspan="4"><div class="empty-state"><p>暂无数据</p></div></td></tr>';return}
+    d.notes.forEach(function(n,i){
+        var tags=(n.tags||[]).slice(0,3).map(function(t){return'<span class="tag tag-purple">'+esc(t)+'</span>'}).join(' ');
+        tb.innerHTML+='<tr><td>'+(n.rank||i+1)+'</td><td style="color:var(--text-primary);font-weight:500">'+esc(n.title)+'</td><td><span class="tag tag-red">'+fmt(n.likes)+'</span></td><td>'+tags+'</td></tr>'
+    })
+});
+</script>
+{% endblock %}

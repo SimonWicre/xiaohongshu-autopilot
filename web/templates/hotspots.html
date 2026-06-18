@@ -3,7 +3,31 @@
 {% block title %}热点趋势 - 小红书运营看板{% endblock %}
 {% block head %}<script src="/static/chart.min.js"></script>{% endblock %}
 {% block content %}
-<div class="page-header"><h1 class="page-title">热点趋势</h1><p class="page-subtitle">基于多源数据分析的热点识别</p></div>
+<div class="page-header"><h1 class="page-title">热点趋势</h1><p class="page-subtitle">基于多源数据分析的热点识别，点击来源卡片查看细分热榜</p></div>
+
+<div class="stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:24px">
+    <a class="stat-card" href="/source/weibo" style="cursor:pointer;text-decoration:none">
+        <div class="stat-label"><span class="stat-dot" style="background:var(--red)"></span>微博热搜</div>
+        <div class="stat-value" id="cnt-weibo" style="color:var(--text-primary)">-</div>
+    </a>
+    <a class="stat-card" href="/source/toutiao" style="cursor:pointer;text-decoration:none">
+        <div class="stat-label"><span class="stat-dot" style="background:var(--orange)"></span>头条热榜</div>
+        <div class="stat-value" id="cnt-toutiao" style="color:var(--text-primary)">-</div>
+    </a>
+    <a class="stat-card" href="/source/baidu" style="cursor:pointer;text-decoration:none">
+        <div class="stat-label"><span class="stat-dot" style="background:var(--blue)"></span>百度热搜</div>
+        <div class="stat-value" id="cnt-baidu" style="color:var(--text-primary)">-</div>
+    </a>
+    <a class="stat-card" href="/source/zhihu" style="cursor:pointer;text-decoration:none">
+        <div class="stat-label"><span class="stat-dot" style="background:var(--blue)"></span>知乎热榜</div>
+        <div class="stat-value" id="cnt-zhihu" style="color:var(--text-primary)">-</div>
+    </a>
+    <a class="stat-card" href="/source/xiaohongshu" style="cursor:pointer;text-decoration:none">
+        <div class="stat-label"><span class="stat-dot" style="background:var(--accent)"></span>小红书</div>
+        <div class="stat-value" id="cnt-xhs" style="color:var(--text-primary)">-</div>
+    </a>
+</div>
+
 <div class="grid-2">
     <div class="card"><div class="card-header"><span class="card-title">标题模式分析</span></div><div class="card-body"><div class="chart-container"><canvas id="title-pattern-chart"></canvas></div></div></div>
     <div class="card"><div class="card-header"><span class="card-title">热点排行榜</span></div><div class="card-body" id="hotspot-ranking"><div class="loading"><div class="spinner"></div>分析中...</div></div></div>
@@ -15,6 +39,11 @@
 async function api(ep){try{var r=await fetch('/api/'+ep);return await r.json()}catch(e){return null}}
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 document.addEventListener('DOMContentLoaded',async function(){
+    var nd=await api('notes');var notes=nd?nd.notes:[];
+    var counts={};notes.forEach(function(n){var s=n.source||'other';counts[s]=(counts[s]||0)+1});
+    var map={weibo:'cnt-weibo',toutiao:'cnt-toutiao',baidu:'cnt-baidu',zhihu:'cnt-zhihu',xiaohongshu:'cnt-xhs'};
+    Object.keys(map).forEach(function(k){var el=document.getElementById(map[k]);if(el)el.textContent=counts[k]||0});
+
     var d=await api('hotspots');if(!d)return;
     var rank=document.getElementById('hotspot-ranking');rank.innerHTML='';
     var hs=d.hotspots||[];

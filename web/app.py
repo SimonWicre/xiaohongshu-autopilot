@@ -68,6 +68,19 @@ def tasks_page():
     return render_template("tasks.html")
 
 
+SOURCE_NAMES = {
+    "weibo": "微博热搜", "toutiao": "头条热榜", "baidu": "百度热搜",
+    "zhihu": "知乎热榜", "xiaohongshu": "小红书探索",
+}
+
+
+@app.route("/source/<source_name>")
+def source_page(source_name):
+    if source_name not in SOURCE_NAMES:
+        return "Unknown source", 404
+    return render_template("source.html", source=source_name, source_name=SOURCE_NAMES[source_name])
+
+
 @app.route("/api/overview")
 def api_overview():
     """数据概览"""
@@ -93,8 +106,11 @@ def api_overview():
 
 @app.route("/api/notes")
 def api_notes():
-    """获取爬取的笔记列表"""
+    """获取爬取的笔记列表，支持 ?source=weibo 筛选"""
     crawl_data = load_latest_crawl_data()
+    source = request.args.get("source", "")
+    if source:
+        crawl_data = [n for n in crawl_data if n.get("source") == source]
     return jsonify({"notes": crawl_data, "total": len(crawl_data)})
 
 
