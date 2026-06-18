@@ -28,12 +28,12 @@ generator:
   # AI 模型配置（OpenAI 兼容接口）
   model: "gpt-4"
 
-  # AI API 配置（支持 Ollama、OpenAI、Claude 等）
-  # 留空则使用模板生成
+  # AI API 配置（OpenAI 兼容接口）
+  # API Key 从 .env 文件读取，不要写在配置文件里
   ai:
-    api_base: ""  # 例如 "http://localhost:11434/v1" (Ollama) 或 "https://api.openai.com/v1"
-    api_key: ""   # Ollama 填 "ollama"，OpenAI 填 "sk-xxx"
-    model: ""     # 例如 "qwen2.5:14b" 或 "gpt-4o"
+    api_base: "https://token-plan-cn.xiaomimimo.com/v1"
+    api_key: "${AI_API_KEY}"
+    model: "mimo-v2.5-pro"
 
   # 生成规则
   rules:

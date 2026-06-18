@@ -5,12 +5,23 @@
 
 import asyncio
 import json
+import os
 from typing import List, Dict, Any
 from datetime import datetime
 from uuid import uuid4
 import random
+from pathlib import Path
 
 import aiohttp
+
+# 加载 .env 文件
+_env_path = Path(__file__).parent.parent / ".env"
+if _env_path.exists():
+    for line in _env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
 
 
 class ContentGenerator:
@@ -25,7 +36,13 @@ class ContentGenerator:
         # AI API 配置
         ai_config = config.get("ai", {})
         self.ai_api_base = ai_config.get("api_base", "")
-        self.ai_api_key = ai_config.get("api_key", "")
+        raw_key = ai_config.get("api_key", "")
+        # 支持 ${ENV_VAR} 格式
+        if raw_key.startswith("${") and raw_key.endswith("}"):
+            env_name = raw_key[2:-1]
+            self.ai_api_key = os.environ.get(env_name, "")
+        else:
+            self.ai_api_key = raw_key
         self.ai_model = ai_config.get("model", self.model)
 
         # 小红书内容规范
