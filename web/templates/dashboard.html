@@ -336,7 +336,7 @@
             }
             .nav-item svg { width: 20px; height: 20px; }
             .nav-badge { margin-left: 0; font-size: 9px; position: absolute; top: 2px; right: 2px; }
-            .nav-item { position: relative; }
+            .nav-item { position: relative; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
             .sidebar-footer { display: none; }
             .main { margin-left: 72px; padding: 16px; padding-bottom: 16px; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -659,17 +659,33 @@
         let currentFilter = 'all';
 
         function switchSection(name) {
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.nav-item[data-section]').forEach(n => n.classList.remove('active'));
-            document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById(`section-${name}`).classList.add('active');
-            const navItem = document.querySelector(`.nav-item[data-section="${name}"]`);
+            // 隐藏所有 section
+            document.querySelectorAll('.section').forEach(function(s) {
+                s.classList.remove('active');
+                s.style.display = 'none';
+            });
+            // 显示目标 section
+            var target = document.getElementById('section-' + name);
+            if (target) {
+                target.classList.add('active');
+                target.style.display = 'block';
+            }
+            // 更新侧边栏高亮
+            document.querySelectorAll('.nav-item[data-section]').forEach(function(n) {
+                n.classList.remove('active');
+            });
+            var navItem = document.querySelector('.nav-item[data-section="' + name + '"]');
             if (navItem) navItem.classList.add('active');
-            const bottomMap = { overview: 0, hotspots: 1, notes: 2, tasks: 3 };
-            const bottomItems = document.querySelectorAll('.bottom-nav-item');
+            // 更新底部导航高亮
+            document.querySelectorAll('.bottom-nav-item').forEach(function(n) {
+                n.classList.remove('active');
+            });
+            var bottomMap = { overview: 0, hotspots: 1, notes: 2, tasks: 3 };
+            var bottomItems = document.querySelectorAll('.bottom-nav-item');
             if (bottomMap[name] !== undefined && bottomItems[bottomMap[name]]) {
                 bottomItems[bottomMap[name]].classList.add('active');
             }
+            // 按需加载数据
             if (name === 'hotspots' && !currentData.hotspots) runAnalysis();
             if (name === 'notes') loadGenerated();
         }
