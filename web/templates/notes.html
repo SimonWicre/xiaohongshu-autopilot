@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% set active = "notes" %}
+{% block title %}内容管理 - 小红书运营看板{% endblock %}
+{% block content %}
+<div class="page-header"><h1 class="page-title">内容管理</h1><p class="page-subtitle">AI 生成的小红书笔记</p></div>
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">已生成笔记</span>
+        <div class="card-actions">
+            <a class="btn btn-sm" href="/notes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>刷新</a>
+            <button class="btn btn-sm btn-primary" id="btn-generate" onclick="doGenerate()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>AI 生成</button>
+        </div>
+    </div>
+    <div class="card-body" id="notes-list"><div class="loading"><div class="spinner"></div>加载中...</div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+async function loadGenerated(){
+    try{var r=await fetch('/api/generated');var d=await r.json()}catch(e){return}
+    var el=document.getElementById('notes-list');el.innerHTML='';
+    if(!d.notes||!d.notes.length){el.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无生成的笔记，点击「AI 生成」创建</p></div>';return}
+    d.notes.forEach(function(n){
+        el.innerHTML+='<div style="margin-bottom:20px;padding:20px;background:var(--bg-secondary);border-radius:var(--radius-sm);border:1px solid var(--border)"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px"><div style="font-size:17px;font-weight:600;color:var(--text-primary);line-height:1.4">'+esc(n.title)+'</div><span class="tag tag-green" style="flex-shrink:0;margin-left:12px">AI</span></div><div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">话题: '+esc(n.topic)+' &nbsp; '+n.tags.map(function(t){return'<span class="tag tag-purple">'+esc(t)+'</span>'}).join(' ')+'</div><div style="font-size:14px;line-height:1.8;color:var(--text-secondary);white-space:pre-wrap">'+esc(n.content)+'</div></div>'
+    })
+}
+async function doGenerate(){
+    var btn=document.getElementById('btn-generate');btn.disabled=true;btn.innerHTML='<div class="spinner" style="width:14px;height:14px;margin:0"></div> 生成中...';
+    try{await fetch('/api/generate',{method:'POST'})}catch(e){}
+    btn.disabled=false;btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>AI 生成';
+    loadGenerated();
+}
+document.addEventListener('DOMContentLoaded',loadGenerated);
+</script>
+{% endblock %}

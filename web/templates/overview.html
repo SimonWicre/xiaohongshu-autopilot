@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% set active = "overview" %}
+{% block title %}数据概览 - 小红书运营看板{% endblock %}
+{% block head %}<script src="/static/chart.min.js"></script>{% endblock %}
+{% block content %}
+<div class="page-header"><h1 class="page-title">数据概览</h1><p class="page-subtitle">实时监控运营数据</p></div>
+<div class="stats-grid">
+    <div class="stat-card"><div class="stat-label"><span class="stat-dot" style="background:var(--accent)"></span>采集笔记</div><div class="stat-value" id="stat-crawled">-</div></div>
+    <div class="stat-card"><div class="stat-label"><span class="stat-dot" style="background:var(--green)"></span>识别热点</div><div class="stat-value" id="stat-hotspots">-</div></div>
+    <div class="stat-card"><div class="stat-label"><span class="stat-dot" style="background:var(--orange)"></span>生成笔记</div><div class="stat-value" id="stat-generated">-</div></div>
+    <div class="stat-card"><div class="stat-label"><span class="stat-dot" style="background:var(--blue)"></span>发布成功</div><div class="stat-value" id="stat-published">-</div></div>
+</div>
+<div class="grid-3">
+    <div class="card"><div class="card-header"><span class="card-title">互动数据分布</span></div><div class="card-body"><div class="chart-container"><canvas id="engagement-chart"></canvas></div></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">互动率概览</span></div><div class="card-body" id="engagement-bars"><div class="loading"><div class="spinner"></div>加载中...</div></div></div>
+</div>
+<div class="card"><div class="card-header"><span class="card-title">热门标签</span></div><div class="card-body"><div class="tag-cloud" id="tag-cloud"><div class="loading"><div class="spinner"></div>加载中...</div></div></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function api(ep){try{const r=await fetch('/api/'+ep);return await r.json()}catch(e){return null}}
+function fmt(n){if(n>=10000)return(n/10000).toFixed(1)+'万';if(n>=1000)return(n/1000).toFixed(1)+'k';return String(n||0)}
+document.addEventListener('DOMContentLoaded',async function(){
+    var d=await api('overview');if(!d)return;
+    document.getElementById('stat-crawled').textContent=d.crawled_count||0;
+    document.getElementById('stat-hotspots').textContent=d.hotspots_found||0;
+    document.getElementById('stat-generated').textContent=d.notes_generated||0;
+    document.getElementById('stat-published').textContent=d.publish_success||0;
+    var total=(d.total_likes||0)+(d.total_collects||0)+(d.total_comments||0);
+    var bars=document.getElementById('engagement-bars');bars.innerHTML='';
+    if(total===0){bars.innerHTML='<div class="empty-state"><p>暂无数据</p></div>'}
+    else{[{l:'点赞',v:d.total_likes,c:'var(--red)'},{l:'收藏',v:d.total_collects,c:'var(--orange)'},{l:'评论',v:d.total_comments,c:'var(--blue)'}].forEach(function(i){bars.innerHTML+='<div class="engagement-bar"><span class="engagement-label">'+i.l+'</span><div class="engagement-track"><div class="engagement-fill" style="width:'+(i.v/total*100).toFixed(1)+'%;background:'+i.c+'"></div></div><span class="engagement-value">'+fmt(i.v)+'</span></div>'})}
+    var nd=await api('notes');var notes=nd?nd.notes:[];if(notes.length){
+        var s=[].concat(notes).sort(function(a,b){return(b.likes||0)-(a.likes||0)}).slice(0,10);
+        new Chart(document.getElementById('engagement-chart'),{type:'bar',data:{labels:s.map(function(n){return(n.title||'').slice(0,12)+'...'}),datasets:[{label:'点赞',data:s.map(function(n){return n.likes||0}),backgroundColor:'rgba(255,107,107,0.7)',borderRadius:4},{label:'收藏',data:s.map(function(n){return n.collects||0}),backgroundColor:'rgba(255,165,2,0.7)',borderRadius:4},{label:'评论',data:s.map(function(n){return n.comments||0}),backgroundColor:'rgba(77,171,247,0.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b8b9e'}}},scales:{x:{ticks:{color:'#5a5a72'},grid:{color:'rgba(30,30,46,0.5)'}},y:{ticks:{color:'#5a5a72'},grid:{color:'rgba(30,30,46,0.5)'}}}})}
+    var h=await api('hotspots');var cloud=document.getElementById('tag-cloud');cloud.innerHTML='';
+    if(h&&(h.tag_analysis||{}).top_tags){h.tag_analysis.top_tags.forEach(function(t){cloud.innerHTML+='<span class="tag-cloud-item">'+t[0]+'<span class="count">'+t[1]+'</span></span>'})}else{cloud.innerHTML='<div class="empty-state"><p>暂无标签</p></div>'}
+});
+</script>
+{% endblock %}

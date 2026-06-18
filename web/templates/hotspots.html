@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% set active = "hotspots" %}
+{% block title %}热点趋势 - 小红书运营看板{% endblock %}
+{% block head %}<script src="/static/chart.min.js"></script>{% endblock %}
+{% block content %}
+<div class="page-header"><h1 class="page-title">热点趋势</h1><p class="page-subtitle">基于多源数据分析的热点识别</p></div>
+<div class="grid-2">
+    <div class="card"><div class="card-header"><span class="card-title">标题模式分析</span></div><div class="card-body"><div class="chart-container"><canvas id="title-pattern-chart"></canvas></div></div></div>
+    <div class="card"><div class="card-header"><span class="card-title">热点排行榜</span></div><div class="card-body" id="hotspot-ranking"><div class="loading"><div class="spinner"></div>分析中...</div></div></div>
+</div>
+<div class="card"><div class="card-header"><span class="card-title">标签分布</span></div><div class="card-body"><div class="chart-container" style="height:320px"><canvas id="tag-chart"></canvas></div></div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function api(ep){try{var r=await fetch('/api/'+ep);return await r.json()}catch(e){return null}}
+function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+document.addEventListener('DOMContentLoaded',async function(){
+    var d=await api('hotspots');if(!d)return;
+    var rank=document.getElementById('hotspot-ranking');rank.innerHTML='';
+    var hs=d.hotspots||[];
+    if(hs.length){hs.slice(0,8).forEach(function(h,i){rank.innerHTML+='<div class="hotspot-item"><span class="hotspot-rank '+(i<3?'top':'normal')+'">'+(i+1)+'</span><span class="hotspot-name">'+esc(h.topic)+'</span><span class="tag '+(h.type==='tag_trend'?'tag-purple':'tag-green')+'">'+(h.type==='tag_trend'?'标签':'关键词')+'</span><span class="hotspot-confidence">'+h.confidence+'%</span></div>'})}
+    else{rank.innerHTML='<div class="empty-state"><p>未发现热点</p></div>'}
+    var tp=d.title_patterns||{};
+    new Chart(document.getElementById('title-pattern-chart'),{type:'radar',data:{labels:['Emoji使用','问句格式','数字格式','感叹号'],datasets:[{label:'标题特征(%)',data:[tp.emoji_usage||0,tp.question_format||0,tp.number_format||0,tp.exclamation||0],backgroundColor:'rgba(108,92,231,0.15)',borderColor:'rgba(108,92,231,0.8)',pointBackgroundColor:'rgba(108,92,231,1)',pointBorderColor:'#16161f',pointBorderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b8b9e'}}},scales:{r:{beginAtZero:true,max:100,ticks:{color:'#5a5a72',backdropColor:'transparent'},grid:{color:'rgba(30,30,46,0.5)'},pointLabels:{color:'#8b8b9e'}}}}});
+    var tags=(d.tag_analysis||{}).top_tags||[];
+    new Chart(document.getElementById('tag-chart'),{type:'doughnut',data:{labels:tags.map(function(t){return t[0]}),datasets:[{data:tags.map(function(t){return t[1]}),backgroundColor:['#6c5ce7','#a29bfe','#00d2a0','#4dabf7','#ffa502','#ff6b6b','#fd79a8','#74b9ff','#55efc4','#ffeaa7'],borderColor:'#16161f',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#8b8b9e',padding:12}}}}});
+});
+</script>
+{% endblock %}

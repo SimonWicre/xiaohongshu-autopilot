@@ -50,7 +50,22 @@ def add_no_cache(response):
 
 @app.route("/")
 def index():
-    return render_template("dashboard.html")
+    return render_template("overview.html")
+
+
+@app.route("/hotspots")
+def hotspots_page():
+    return render_template("hotspots.html")
+
+
+@app.route("/notes")
+def notes_page():
+    return render_template("notes.html")
+
+
+@app.route("/tasks")
+def tasks_page():
+    return render_template("tasks.html")
 
 
 @app.route("/api/overview")
