@@ -127,6 +127,7 @@
             border-radius: var(--radius);
             padding: 20px;
             transition: border-color 0.15s;
+            cursor: pointer;
         }
 
         .stat-card:hover { border-color: var(--border-light); }
@@ -370,19 +371,19 @@
                 </div>
 
                 <div class="stats-grid">
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchSection('notes')">
                         <div class="stat-label"><span class="stat-dot" style="background:var(--accent)"></span>采集笔记</div>
                         <div class="stat-value" id="stat-crawled">-</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchSection('hotspots')">
                         <div class="stat-label"><span class="stat-dot" style="background:var(--green)"></span>识别热点</div>
                         <div class="stat-value" id="stat-hotspots">-</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchSection('notes')">
                         <div class="stat-label"><span class="stat-dot" style="background:var(--orange)"></span>生成笔记</div>
                         <div class="stat-value" id="stat-generated">-</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="switchSection('tasks')">
                         <div class="stat-label"><span class="stat-dot" style="background:var(--blue)"></span>发布成功</div>
                         <div class="stat-value" id="stat-published">-</div>
                     </div>
