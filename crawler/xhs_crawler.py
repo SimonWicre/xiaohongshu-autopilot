@@ -171,6 +171,7 @@ asyncio.run(main())
             "tags": raw.get("tags", raw.get("tag_list", [])),
             "created_at": raw.get("time", raw.get("created_at", "")),
             "crawl_time": datetime.now().isoformat(),
+            "source": "xiaohongshu",
         }
 
     @staticmethod

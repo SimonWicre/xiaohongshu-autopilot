@@ -9,28 +9,31 @@
     <div class="stat-card"><div class="stat-label"><span class="stat-dot" style="background:var(--text-muted)"></span>已完成</div><div class="stat-value" id="task-done">0</div></div>
 </div>
 <div class="card">
-    <div class="card-header"><span class="card-title">任务队列</span><div class="card-actions"><button class="btn btn-sm btn-primary" onclick="startPublish()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>开始发布</button></div></div>
-    <div class="card-body"><div class="task-list" id="task-list"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><p>暂无发布任务</p></div></div></div>
+    <div class="card-header"><span class="card-title">任务队列</span><div class="card-actions"><button class="btn btn-sm btn-primary" id="btn-publish" onclick="startPublish()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>开始发布</button></div></div>
+    <div class="card-body"><div class="task-list" id="task-list"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><p>暂无发布任务，点击「开始发布」发布 AI 生成的笔记</p></div></div></div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
-function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 async function startPublish(){
-    var r=await fetch('/api/generated');var d=await r.json();
-    if(!d.notes||!d.notes.length){alert('请先在「内容管理」页面生成笔记');window.location.href='/notes';return}
+    var btn=document.getElementById('btn-publish');btn.disabled=true;btn.textContent='获取笔记...';
+    var d;
+    try{var r=await fetch('/api/generated');d=await r.json()}catch(e){btn.disabled=false;btn.innerHTML='开始发布';alert('无法获取笔记数据');return}
+    if(!d.notes||!d.notes.length){btn.disabled=false;btn.innerHTML='开始发布';alert('请先在「内容管理」页面生成笔记');window.location.href='/notes';return}
     var list=document.getElementById('task-list');list.innerHTML='';
-    var notes=d.notes.slice(0,3);document.getElementById('task-pending').textContent=notes.length;
+    var notes=d.notes;document.getElementById('task-pending').textContent=notes.length;
     notes.forEach(function(n,i){list.innerHTML+='<div class="task-item" id="task-'+i+'"><span class="task-status pending"></span><div class="task-info"><div class="task-title">'+esc(n.title)+'</div><div class="task-meta">等待发布...</div></div><span class="task-time">-</span></div>'});
-    for(var i=0;i<notes.length;i++){
-        var el=document.getElementById('task-'+i);
-        el.querySelector('.task-status').className='task-status running';el.querySelector('.task-meta').textContent='发布中...';
-        document.getElementById('task-running').textContent='1';document.getElementById('task-pending').textContent=String(notes.length-i-1);
-        await new Promise(function(r){setTimeout(r,1500)});
-        el.querySelector('.task-status').className='task-status done';el.querySelector('.task-meta').textContent='发布完成';
-        el.querySelector('.task-time').textContent=new Date().toLocaleTimeString('zh-CN');
-        document.getElementById('task-running').textContent='0';document.getElementById('task-done').textContent=String(i+1);
-    }
+    btn.textContent='发布中...';
+    try{
+        var resp=await fetch('/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:notes})});
+        var result=await resp.json();var success=0;
+        (result.results||[]).forEach(function(r,i){var el=document.getElementById('task-'+i);if(!el)return;
+            if(r.success){el.querySelector('.task-status').className='task-status done';el.querySelector('.task-meta').textContent='发布成功';success++}
+            else{el.querySelector('.task-status').className='task-status done';el.querySelector('.task-meta').textContent='失败: '+(r.error||'未知')}
+            el.querySelector('.task-time').textContent=new Date().toLocaleTimeString('zh-CN')});
+        document.getElementById('task-running').textContent='0';document.getElementById('task-pending').textContent='0';
+        document.getElementById('task-done').textContent=String(success);btn.textContent='发布完成 ('+success+'/'+notes.length+')';
+    }catch(e){btn.textContent='发布失败';alert('发布请求失败: '+e.message)}
 }
 </script>
 {% endblock %}

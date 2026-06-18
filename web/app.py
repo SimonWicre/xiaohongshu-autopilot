@@ -201,17 +201,8 @@ def api_publish():
     return jsonify({"results": results})
 
 
-@app.route("/api/config")
-def api_config():
-    """获取当前配置"""
-    import yaml
-    config_path = BASE_DIR / "config" / "settings.yaml"
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-    return jsonify(config)
-
-
 if __name__ == "__main__":
+    import os
     print("🚀 小红书运营看板启动")
     print("📊 访问地址: http://0.0.0.0:5000")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=os.getenv("FLASK_DEBUG", "0") == "1")
