@@ -104,7 +104,7 @@ def api_hotspots():
 
 @app.route("/api/generate", methods=["POST"])
 def api_generate():
-    """生成笔记内容"""
+    """生成笔记内容并保存"""
     from generator.content_generator import ContentGenerator
     from analyzer.hotspot_analyzer import HotspotAnalyzer
     import yaml
@@ -121,7 +121,35 @@ def api_generate():
     generator = ContentGenerator(config["generator"])
     notes = asyncio.run(generator.generate(analysis_result))
 
+    save_generated_notes(notes)
     return jsonify({"notes": notes, "count": len(notes)})
+
+
+@app.route("/api/generated")
+def api_generated():
+    """获取已生成的笔记列表"""
+    notes = load_generated_notes()
+    return jsonify({"notes": notes, "total": len(notes)})
+
+
+def save_generated_notes(notes):
+    """保存生成的笔记到文件"""
+    import json
+    reports_dir = BASE_DIR / "reports"
+    reports_dir.mkdir(exist_ok=True)
+    path = reports_dir / "generated_notes.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(notes, f, ensure_ascii=False, indent=2)
+
+
+def load_generated_notes():
+    """读取已生成的笔记"""
+    import json
+    path = BASE_DIR / "reports" / "generated_notes.json"
+    if path.exists():
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
 
 @app.route("/api/publish", methods=["POST"])

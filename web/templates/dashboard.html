@@ -538,48 +538,30 @@
                 </div>
             </div>
 
-            <!-- Notes -->
+            <!-- Notes (AI 生成的笔记) -->
             <div class="section" id="section-notes">
                 <div class="page-header">
                     <h1 class="page-title">内容管理</h1>
-                    <p class="page-subtitle">管理采集和生成的笔记内容</p>
+                    <p class="page-subtitle">AI 生成的小红书笔记</p>
                 </div>
 
                 <div class="card">
                     <div class="card-header">
-                        <span class="card-title">笔记列表</span>
+                        <span class="card-title">已生成笔记</span>
                         <div class="card-actions">
-                            <button class="btn btn-sm" onclick="loadNotes()">
+                            <button class="btn btn-sm" onclick="loadGenerated()">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                                 刷新
                             </button>
-                            <button class="btn btn-sm btn-primary" onclick="generateNotes()">
+                            <button class="btn btn-sm btn-primary" id="btn-generate" onclick="generateNotes()">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                                 AI 生成
                             </button>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div class="table-wrapper">
-                            <table>
-                                <thead><tr><th>标题</th><th>来源</th><th>作者</th><th>热度</th><th>收藏</th><th>标签</th></tr></thead>
-                                <tbody id="notes-table-body"><tr><td colspan="6"><div class="loading"><div class="spinner"></div>加载中...</div></td></tr></tbody>
-                            </table>
-                        </div>
+                    <div class="card-body" id="generated-notes-list">
+                        <div class="loading"><div class="spinner"></div>加载中...</div>
                     </div>
-                </div>
-
-                <div class="card" id="generated-notes-card" style="margin-top:16px;display:none">
-                    <div class="card-header">
-                        <span class="card-title">AI 生成的笔记</span>
-                        <div class="card-actions">
-                            <button class="btn btn-sm btn-primary" onclick="publishGenerated()">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                                发布
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body" id="generated-notes-body"></div>
                 </div>
             </div>
 
@@ -683,14 +665,13 @@
             document.getElementById(`section-${name}`).classList.add('active');
             const navItem = document.querySelector(`.nav-item[data-section="${name}"]`);
             if (navItem) navItem.classList.add('active');
-            // Sync bottom nav
             const bottomMap = { overview: 0, hotspots: 1, notes: 2, tasks: 3 };
             const bottomItems = document.querySelectorAll('.bottom-nav-item');
             if (bottomMap[name] !== undefined && bottomItems[bottomMap[name]]) {
                 bottomItems[bottomMap[name]].classList.add('active');
             }
             if (name === 'hotspots' && !currentData.hotspots) runAnalysis();
-            if (name === 'notes' && currentData.notes.length === 0) loadNotes();
+            if (name === 'notes') loadGenerated();
         }
 
         function filterBySource(source) {
@@ -865,45 +846,41 @@
             container.innerHTML = tags.map(([name, count]) => `<span class="tag-cloud-item">${escapeHtml(name)}<span class="count">${count}</span></span>`).join('');
         }
 
-        let generatedNotes = [];
-
-        async function generateNotes() {
-            const btn = event.target.closest('.btn');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;margin:0"></div> 生成中...';
-            const data = await api('generate', { method: 'POST' });
-            btn.disabled = false;
-            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> AI 生成';
-
-            if (data && data.notes) {
-                generatedNotes = data.notes;
-                renderGeneratedNotes(data.notes);
+        async function loadGenerated() {
+            const container = document.getElementById('generated-notes-list');
+            const data = await api('generated');
+            if (!data || !data.notes.length) {
+                container.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><p>暂无生成的笔记，点击「AI 生成」创建</p></div>';
+                return;
             }
-        }
 
-        function renderGeneratedNotes(notes) {
-            const card = document.getElementById('generated-notes-card');
-            const body = document.getElementById('generated-notes-body');
-            card.style.display = 'block';
+            const badge = document.getElementById('notes-count');
+            if (badge) badge.textContent = data.total;
 
-            body.innerHTML = notes.map((note, i) => `
-                <div style="margin-bottom:20px;padding:16px;background:var(--bg-secondary);border-radius:var(--radius-sm);border:1px solid var(--border)">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-                        <div style="font-size:16px;font-weight:600;color:var(--text-primary)">${escapeHtml(note.title)}</div>
-                        <span class="tag tag-green">AI 生成</span>
+            container.innerHTML = data.notes.map(note => `
+                <div style="margin-bottom:20px;padding:20px;background:var(--bg-secondary);border-radius:var(--radius-sm);border:1px solid var(--border)">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+                        <div style="font-size:17px;font-weight:600;color:var(--text-primary);line-height:1.4">${escapeHtml(note.title)}</div>
+                        <span class="tag tag-green" style="flex-shrink:0;margin-left:12px">AI</span>
                     </div>
-                    <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">
-                        话题: ${escapeHtml(note.topic)} | ${note.tags.map(t => '#' + t).join(' ')}
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+                        话题: ${escapeHtml(note.topic)} &nbsp; ${note.tags.map(t => '<span class="tag tag-purple">' + escapeHtml(t) + '</span>').join(' ')}
                     </div>
                     <div style="font-size:14px;line-height:1.8;color:var(--text-secondary);white-space:pre-wrap">${escapeHtml(note.content)}</div>
                 </div>
             `).join('');
         }
 
-        function publishGenerated() {
-            if (!generatedNotes.length) { alert('请先生成笔记'); return; }
-            switchSection('tasks');
-            startPublish();
+        async function generateNotes() {
+            const btn = document.getElementById('btn-generate');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;margin:0"></div> 生成中...';
+            const data = await api('generate', { method: 'POST' });
+            btn.disabled = false;
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> AI 生成';
+            if (data && data.notes) {
+                loadGenerated();
+            }
         }
 
         async function startPublish() {
