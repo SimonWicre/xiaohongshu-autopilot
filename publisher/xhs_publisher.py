@@ -84,7 +84,10 @@ class XHSPublisher:
                     "published_at": datetime.now().isoformat(),
                     "success": True
                 })
-                
+                # 保留最近 100 条历史，避免长期运行内存累积
+                if len(self.publish_history) > 100:
+                    self.publish_history = self.publish_history[-100:]
+
                 print(f"     ✅ 发布成功")
                 return {
                     "note_id": note.get("id"),

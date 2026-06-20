@@ -226,8 +226,15 @@ class HotspotAnalyzer:
         hotspots = []
         seen_topics = set()
 
-        # 过滤掉数据源标签（不是真正的话题）
-        source_labels = {"微博热搜", "头条热榜", "百度热搜", "知乎热榜", "小红书", "干货分享", "学习笔记", "经验总结", "实用技巧", "新手入门"}
+        # 过滤掉数据源标签（不是真正的话题）：动态从 note.author 和 tags 提取 + 通用非话题词
+        source_labels = set()
+        for n in notes:
+            if n.get("author"):
+                source_labels.add(n["author"])
+            tags = n.get("tags") or []
+            if isinstance(tags, list):
+                source_labels.update(t for t in tags if isinstance(t, str))
+        source_labels.update({"小红书", "干货分享", "学习笔记", "经验总结", "实用技巧", "新手入门"})
 
         # 优先用笔记标题作为热点话题（按热度排序）
         sorted_notes = sorted(notes, key=lambda n: self._safe_int(n.get("likes", 0)), reverse=True)

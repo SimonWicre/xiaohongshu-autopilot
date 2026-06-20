@@ -5,6 +5,7 @@
 
 import re
 import json
+import html
 from typing import List, Dict, Any
 from datetime import datetime
 
@@ -72,7 +73,7 @@ def fetch_toutiao_hot(limit: int = 30) -> List[Dict[str, Any]]:
                 "title": title,
                 "content": f"头条热榜：{title}。热度值 {hot_value}。",
                 "author": "今日头条",
-                "likes": hot_value,
+                "likes": _parse_count(hot_value),
                 "collects": 0,
                 "comments": 0,
                 "shares": 0,
@@ -146,7 +147,7 @@ def fetch_zhihu_hot(limit: int = 30) -> List[Dict[str, Any]]:
         seen = set()
         for link_url, raw_title in links:
             title = re.sub(r'<[^>]+>', '', raw_title).strip()
-            title = re.sub(r'&#x[0-9a-fA-F]+;?', '', title).strip()
+            title = html.unescape(title).strip()
             if not title or len(title) < 5 or title in seen:
                 continue
             seen.add(title)
@@ -199,7 +200,6 @@ def fetch_xhs_explore(limit: int = 20) -> List[Dict[str, Any]]:
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
 
-        import re
         state_match = re.search(
             r'window\.__INITIAL_STATE__\s*=\s*(\{.+?\})\s*</script>',
             resp.text, re.DOTALL

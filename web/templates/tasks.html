@@ -23,17 +23,46 @@ async function startPublish(){
     var list=document.getElementById('task-list');list.innerHTML='';
     var notes=d.notes;document.getElementById('task-pending').textContent=notes.length;
     notes.forEach(function(n,i){list.innerHTML+='<div class="task-item" id="task-'+i+'"><span class="task-status pending"></span><div class="task-info"><div class="task-title">'+esc(n.title)+'</div><div class="task-meta">等待发布...</div></div><span class="task-time">-</span></div>'});
-    btn.textContent='发布中...';
-    try{
-        var resp=await fetch('/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:notes})});
-        var result=await resp.json();var success=0;
-        (result.results||[]).forEach(function(r,i){var el=document.getElementById('task-'+i);if(!el)return;
-            if(r.success){el.querySelector('.task-status').className='task-status done';el.querySelector('.task-meta').textContent='发布成功';success++}
-            else{el.querySelector('.task-status').className='task-status done';el.querySelector('.task-meta').textContent='失败: '+(r.error||'未知')}
+    btn.textContent='提交任务...';
+
+    var job;
+    try{var resp=await fetch('/api/publish/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:notes})});job=await resp.json()}
+    catch(e){btn.disabled=false;btn.innerHTML='开始发布';alert('提交失败: '+e.message);return}
+    if(job.error){btn.disabled=false;btn.innerHTML='开始发布';alert('提交失败: '+job.error);return}
+
+    document.getElementById('task-running').textContent=String(job.total);
+    btn.textContent='发布中 (0/'+job.total+')...';
+
+    for(var i=0;i<3600;i++){
+        await new Promise(function(r){setTimeout(r,2000)});
+        var s;
+        try{var sr=await fetch('/api/publish/status/'+job.job_id);s=await sr.json()}
+        catch(e){continue}
+        if(s.error){btn.textContent='查询失败';return}
+
+        (s.results||[]).forEach(function(r,j){var el=document.getElementById('task-'+j);if(!el)return;
+            el.querySelector('.task-status').className=r.success?'task-status done':'task-status done';
+            el.querySelector('.task-meta').textContent=r.success?'发布成功':'失败: '+(r.error||'未知');
             el.querySelector('.task-time').textContent=new Date().toLocaleTimeString('zh-CN')});
-        document.getElementById('task-running').textContent='0';document.getElementById('task-pending').textContent='0';
-        document.getElementById('task-done').textContent=String(success);btn.textContent='发布完成 ('+success+'/'+notes.length+')';
-    }catch(e){btn.textContent='发布失败';alert('发布请求失败: '+e.message)}
+
+        document.getElementById('task-running').textContent=String(s.total - s.completed);
+        document.getElementById('task-pending').textContent='0';
+        btn.textContent='发布中 ('+s.completed+'/'+s.total+')...';
+
+        if(s.status==='done'){
+            var ok=(s.results||[]).filter(function(r){return r.success}).length;
+            document.getElementById('task-done').textContent=String(ok);
+            btn.disabled=false;btn.innerHTML='开始发布';
+            btn.textContent='发布完成 ('+s.completed+'/'+s.total+')';
+            return;
+        }
+        if(s.status==='error'){
+            btn.disabled=false;btn.textContent='发布失败: '+(s.error||'未知');
+            alert('发布异常: '+(s.error||'未知'));
+            return;
+        }
+    }
+    btn.disabled=false;btn.textContent='轮询超时（>2 小时）';
 }
 </script>
 {% endblock %}

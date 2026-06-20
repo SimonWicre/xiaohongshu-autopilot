@@ -111,16 +111,23 @@ class XHSCrawler:
             override_script.unlink(missing_ok=True)
 
     def _create_override_script(self, keywords_str: str) -> Path:
-        """创建临时的 MediaCrawler 启动脚本"""
+        """创建临时的 MediaCrawler 启动脚本（配置通过 JSON 转义，防止字符串注入）"""
         script = MEDIA_CRAWLER_DIR / "_run_temp.py"
-        script.write_text(f"""import sys
+        config_json = json.dumps({
+            "PLATFORM": self.platform,
+            "KEYWORDS": keywords_str,
+            "CRAWLER_TYPE": self.crawl_type,
+            "HEADLESS": self.headless,
+        }, ensure_ascii=False)
+        script.write_text(f"""import sys, json
 sys.path.insert(0, ".")
 
 import config
-config.PLATFORM = "{self.platform}"
-config.KEYWORDS = "{keywords_str}"
-config.CRAWLER_TYPE = "{self.crawl_type}"
-config.HEADLESS = {self.headless}
+_c = {config_json}
+config.PLATFORM = _c["PLATFORM"]
+config.KEYWORDS = _c["KEYWORDS"]
+config.CRAWLER_TYPE = _c["CRAWLER_TYPE"]
+config.HEADLESS = _c["HEADLESS"]
 config.SAVE_DATA_OPTION = "json"
 config.ENABLE_CDP_MODE = True
 

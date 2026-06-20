@@ -121,7 +121,7 @@ def fetch_repo_readme(owner: str, repo: str, max_chars: int = 3000) -> str:
                 text = re.sub(r'<[^>]+>', '', text)          # 去 HTML
                 text = re.sub(r'\n{3,}', '\n\n', text)       # 去多余空行
                 return text
-        except:
+        except requests.RequestException:
             continue
     return ""
 
@@ -134,7 +134,7 @@ def fetch_repo_api(owner: str, repo: str) -> dict:
         resp = requests.get(url, headers=headers, timeout=10)
         if resp.status_code == 200:
             return resp.json()
-    except:
+    except requests.RequestException:
         pass
     return {}
 

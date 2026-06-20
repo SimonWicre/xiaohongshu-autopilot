@@ -13,15 +13,11 @@ import random
 from pathlib import Path
 
 import aiohttp
+from dotenv import load_dotenv
 
-# 加载 .env 文件
+# 加载 .env 文件（不覆盖已存在的环境变量，与原 setdefault 行为一致）
 _env_path = Path(__file__).parent.parent / ".env"
-if _env_path.exists():
-    for line in _env_path.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+load_dotenv(dotenv_path=_env_path, override=False)
 
 
 class ContentGenerator:

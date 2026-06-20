@@ -6,6 +6,9 @@
 import json
 import glob
 import sys
+import threading
+import uuid
+import asyncio
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, jsonify, render_template, request
@@ -19,6 +22,64 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
 BASE_DIR = PROJECT_ROOT
+
+
+# ── 后台发布任务（避免 /api/publish 同步阻塞 30 分钟 × N 篇） ──
+_publish_jobs = {}
+_publish_jobs_lock = threading.Lock()
+
+
+async def _publish_with_progress(publisher, notes, job_id):
+    """逐篇发布，每完成一篇更新 job 进度（覆盖原 publish_batch 的 sleep 间隔）"""
+    job = _publish_jobs[job_id]
+    all_results = []
+    for i, note in enumerate(notes):
+        if publisher.published_count >= publisher.daily_limit:
+            break
+        result = await publisher._publish_single_note(note, i + 1)
+        all_results.append(result)
+        with _publish_jobs_lock:
+            job["completed"] = i + 1
+            job["results"] = list(all_results)
+        if i < len(notes) - 1:
+            await asyncio.sleep(publisher.interval_minutes * 60)
+    return all_results
+
+
+def _run_publish_job(job_id, notes, config):
+    """后台线程入口"""
+    with _publish_jobs_lock:
+        _publish_jobs[job_id]["status"] = "running"
+        _publish_jobs[job_id]["started_at"] = datetime.now().isoformat()
+    try:
+        from publisher.xhs_publisher import XHSPublisher
+        publisher = XHSPublisher(config["publisher"])
+        results = asyncio.run(_publish_with_progress(publisher, notes, job_id))
+        with _publish_jobs_lock:
+            _publish_jobs[job_id]["results"] = results
+            _publish_jobs[job_id]["status"] = "done"
+    except Exception as e:
+        app.logger.exception("Publish job %s failed", job_id)
+        with _publish_jobs_lock:
+            _publish_jobs[job_id]["status"] = "error"
+            _publish_jobs[job_id]["error"] = str(e)
+    finally:
+        with _publish_jobs_lock:
+            _publish_jobs[job_id]["finished_at"] = datetime.now().isoformat()
+
+
+from werkzeug.exceptions import HTTPException
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """未处理异常统一返回 JSON（API 路径）或文本（页面路径）"""
+    if isinstance(e, HTTPException):
+        return e
+    app.logger.exception("Unhandled exception in %s", request.path)
+    if request.path.startswith("/api/"):
+        return jsonify({"error": str(e), "type": type(e).__name__}), 500
+    return "Internal Server Error", 500
 
 
 def load_latest_report():
@@ -43,6 +104,10 @@ def load_latest_crawl_data():
 
 @app.after_request
 def add_no_cache(response):
+    # /static/ 资源（chart.min.js 等）走浏览器缓存 1 小时，覆盖 Werkzeug dev server 默认 no-cache
+    if "/static/" in request.path:
+        response.headers["Cache-Control"] = "public, max-age=3600"
+        return response
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     return response
@@ -87,9 +152,15 @@ def api_overview():
     report = load_latest_report()
     crawl_data = load_latest_crawl_data()
 
-    total_likes = sum(note.get("likes", 0) for note in crawl_data)
-    total_collects = sum(note.get("collects", 0) for note in crawl_data)
-    total_comments = sum(note.get("comments", 0) for note in crawl_data)
+    def _to_int(v):
+        try:
+            return int(v) if v not in (None, "") else 0
+        except (TypeError, ValueError):
+            return 0
+
+    total_likes = sum(_to_int(note.get("likes")) for note in crawl_data)
+    total_collects = sum(_to_int(note.get("collects")) for note in crawl_data)
+    total_comments = sum(_to_int(note.get("comments")) for note in crawl_data)
 
     return jsonify({
         "crawled_count": report.get("crawled_count", 0) if report else len(crawl_data),
@@ -183,22 +254,58 @@ def load_generated_notes():
     return []
 
 
-@app.route("/api/publish", methods=["POST"])
-def api_publish():
-    """发布笔记"""
-    from publisher.xhs_publisher import XHSPublisher
+@app.route("/api/publish/start", methods=["POST"])
+def api_publish_start():
+    """提交发布任务，立即返回 job_id（不阻塞）"""
     import yaml
-    import asyncio
-
     config_path = BASE_DIR / "config" / "settings.yaml"
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     notes = request.json.get("notes", [])
-    publisher = XHSPublisher(config["publisher"])
-    results = asyncio.run(publisher.publish_batch(notes))
+    if not notes:
+        return jsonify({"error": "notes 不能为空"}), 400
 
-    return jsonify({"results": results})
+    job_id = uuid.uuid4().hex[:12]
+    with _publish_jobs_lock:
+        _publish_jobs[job_id] = {
+            "status": "queued",
+            "total": len(notes),
+            "completed": 0,
+            "results": [],
+            "started_at": None,
+            "finished_at": None,
+            "error": None,
+        }
+
+    thread = threading.Thread(
+        target=_run_publish_job,
+        args=(job_id, notes, config),
+        daemon=True,
+    )
+    thread.start()
+
+    return jsonify({"job_id": job_id, "total": len(notes), "status": "queued"}), 202
+
+
+@app.route("/api/publish/status/<job_id>", methods=["GET"])
+def api_publish_status(job_id):
+    """查询单个 job 进度"""
+    with _publish_jobs_lock:
+        job = _publish_jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "job not found"}), 404
+    return jsonify(job)
+
+
+@app.route("/api/publish/jobs", methods=["GET"])
+def api_publish_jobs():
+    """列出所有 jobs（不含 results 详情，便于前端初始加载）"""
+    with _publish_jobs_lock:
+        return jsonify({"jobs": [
+            {"job_id": jid, **{k: v for k, v in job.items() if k != "results"}}
+            for jid, job in _publish_jobs.items()
+        ]})
 
 
 if __name__ == "__main__":
