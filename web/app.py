@@ -177,11 +177,14 @@ def api_overview():
 
 @app.route("/api/notes")
 def api_notes():
-    """获取爬取的笔记列表，支持 ?source=weibo 筛选"""
+    """获取爬取的笔记列表，支持 ?source=weibo & ?q=端午 筛选"""
     crawl_data = load_latest_crawl_data()
     source = request.args.get("source", "")
     if source:
         crawl_data = [n for n in crawl_data if n.get("source") == source]
+    q = request.args.get("q", "")
+    if q:
+        crawl_data = [n for n in crawl_data if q.lower() in (n.get("title", "") + n.get("content", "") + str(n.get("tags", ""))).lower()]
     return jsonify({"notes": crawl_data, "total": len(crawl_data)})
 
 
